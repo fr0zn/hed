@@ -17,6 +17,9 @@ typedef struct {
 
     HEBuff *buff; // Store the screen content
 
+    unsigned int bytes_group;
+    unsigned int groups_per_line;
+
     char *file_content;  // The content of the file we are working on
     char *file_name; // The name of the file we are working on
     unsigned int content_length; // Stores the length of the file
@@ -25,16 +28,22 @@ typedef struct {
 
 }HEState;
 
-// Initialize the editor state
-void editor_init(char *filename);
-
-// Clears all buffers and exits the editor
-void editor_exit();
+// Opens the file and stores the content
+void editor_open_file(char *filename);
 
 // Redraws the screen content
 void editor_refresh_screen();
 
 // Process the key pressed
 void editor_process_keypress();
+
+// SIGWINCH handler
+void editor_resize();
+
+// Initialize the editor state
+void editor_init(char *filename);
+
+// Clears all buffers and exits the editor
+void editor_exit();
 
 #endif

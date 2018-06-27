@@ -17,6 +17,7 @@ typedef struct {
 
     HEBuff *buff; // Store the screen content
 
+    unsigned int bytes_per_line;
     unsigned int bytes_group;
     unsigned int groups_per_line;
 

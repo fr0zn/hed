@@ -56,11 +56,14 @@ void term_clear(){
     write(STDOUT_FILENO, "\x1b[0m\x1b\[H\x1b[2J", 11);
 }
 
-// Draws a buffer on the terminal
-void term_draw(HEBuff* buff){
-
-    if(write(STDOUT_FILENO, buff->content, buff->len) == -1){
-        perror("Couldn't write the HEBuff content");
+void term_print(char *data, ssize_t len){
+    if(write(STDOUT_FILENO, data, len) == -1){
+        perror("Couldn't write the content");
         exit(1);
     }
+}
+
+// Draws a buffer on the terminal
+void term_draw(HEBuff* buff){
+    term_print(buff->content, buff->len);
 }

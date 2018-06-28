@@ -4,6 +4,12 @@
 #include "buff.h"
 #include <termios.h>
 
+enum editor_mode {
+    MODE_NORMAL       = 0x001,
+    MODE_COMMAND      = 0x002,
+    MODE_INSERT       = 0x003,
+};
+
 // Struct to store the state of the editor, such as the position on the screen
 // the file content and length and the status message. It also holds the
 // original terminal settings to restore on exit
@@ -16,6 +22,9 @@ typedef struct {
     int cursor_y;
 
     HEBuff *buff; // Store the screen content
+
+    enum editor_mode mode; // Mode the editor is in
+    char* status_message; // Pointer to the message in the status bar
 
     unsigned int bytes_per_line;
     unsigned int bytes_group;

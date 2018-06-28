@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <string.h>
+#include <stdarg.h>
 
 static HEState *hestate = NULL;
 // Instance as I
@@ -15,6 +16,7 @@ static HEState *hestate = NULL;
 #define LEN_OFFSET 9
 #define PADDING 1
 #define MAX_COMMAND 32
+#define MAX_STATUS_BAR 128
 
 // Opens the file and stores the content
 void editor_open_file(char *filename){
@@ -231,6 +233,38 @@ void editor_render_command(char *command){
     term_print(buffer, w);
 }
 
+void editor_set_status(const char *fmt, ...){
+
+    va_list ap;
+    va_start(ap, fmt);
+    int x = vsnprintf(I->status_message, MAX_STATUS_BAR, fmt, ap);
+    va_end(ap);
+
+}
+
+void editor_set_mode(enum editor_mode mode){
+    I->mode = mode;
+    switch(I->mode){
+        case MODE_NORMAL:   editor_set_status(""); break;
+        case MODE_INSERT:   editor_set_status("-- INSERT --"); break;
+        case MODE_COMMAND:  break;
+    }
+}
+
+void editor_render_status(HEBuff* buff){
+
+    // Move to (0,screen_rows);
+    buff_vappendf(buff, "\x1b[%d;0H", I->screen_rows);
+
+    int len = strlen(I->status_message);
+    if (I->screen_cols <= len) {
+        len = I->screen_cols;
+        buff_append(buff, I->status_message, len-3);
+        buff_append(buff, "...", 3);
+    }
+    buff_append(buff, I->status_message, len);
+}
+
 void editor_refresh_screen(){
 
     HEBuff* buff = I->buff;
@@ -243,6 +277,7 @@ void editor_refresh_screen(){
 
 
     editor_render_content(buff);
+    editor_render_status(buff);
 
     // Clear the screen and write the buffer on it
     term_clear();
@@ -278,9 +313,10 @@ void editor_process_keypress(){
 
 
     switch (c){
-        case 'q':
-            exit(0);
-            break;
+        case 'q': exit(0); break;
+
+        case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
+
         case 'h': editor_move_cursor(KEY_LEFT, repeat); break;
         case 'j': editor_move_cursor(KEY_DOWN, repeat); break;
         case 'k': editor_move_cursor(KEY_UP, repeat); break;
@@ -288,6 +324,9 @@ void editor_process_keypress(){
 
         case 'w': editor_move_cursor(KEY_RIGHT, repeat*I->bytes_group); break;
         case 'b': editor_move_cursor(KEY_LEFT, repeat*I->bytes_group); break;
+
+        // Modes
+        case 'i': editor_set_mode(MODE_INSERT); break;
 
         // EOF
         case 'G': editor_cursor_at_offset(I->content_length-1); break;
@@ -327,6 +366,10 @@ void editor_init(char *filename){
     I->bytes_group = 2;
     I->groups_per_line = 8;
 
+    // status bar & mode
+    I->mode = MODE_NORMAL;
+    I->status_message = malloc(MAX_STATUS_BAR);
+
     I->cursor_y = 1;
     I->cursor_x = 0;
 
@@ -345,8 +388,10 @@ void editor_init(char *filename){
 // Clears all buffers and exits the editor
 void editor_exit(){
     if(I != NULL){
-        // Free the screen buff
-        buff_remove(I->buff);
+        if (I->buff != NULL){
+            // Free the screen buff
+            buff_remove(I->buff);
+        }
         if (I->file_content != NULL){
             // Free the read file content
             free(I->file_content);
@@ -354,6 +399,10 @@ void editor_exit(){
         if (I->file_name != NULL){
             // Free the filename
             free(I->file_name);
+        }
+        if (I->status_message != NULL){
+            // Free the status_mesasge
+            free(I->status_message);
         }
 
         // Clear the screen

@@ -16,8 +16,6 @@ enum key_codes {
     KEY_ENTER     = 0x0d,
     KEY_BACKSPACE = 0x7f,
 
-    // 'Virtual keys', i.e. not corresponding to terminal escape sequences
-    // or any other ANSI stuff. Merely to identify keys returned by read_key().
     KEY_UP      = 1000, // [A
     KEY_DOWN,           // [B
     KEY_RIGHT,          // [C

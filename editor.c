@@ -358,13 +358,12 @@ void editor_write_cursor(char c){
 
 void editor_reset_write(){
     I->last_write_offset = -1;
-    I->repeat_buff->len = 0;
+    //I->repeat_buff->len = 0;
 }
 
 void editor_write_cursor_repeat(){
 
-
-    for(int r=1; r < I->repeat; r++){
+    for(int r=0; r < I->repeat; r++){
         for(int c=0; c < I->repeat_buff->len; c++){
             editor_write_cursor(I->repeat_buff->content[c]);
         }
@@ -421,6 +420,9 @@ void editor_process_keypress(){
             case 'i': editor_set_mode(MODE_INSERT); break;
             case 'c': editor_set_mode(MODE_CURSOR); break;
 
+            // Repeat last write command
+            case '.': editor_write_cursor_repeat(); break;
+
             // EOF
             case 'G': editor_cursor_at_offset(I->content_length-1); break;
             case 'g':
@@ -440,17 +442,14 @@ void editor_process_keypress(){
     else if(I->mode == MODE_INSERT){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC || c == 'q'){
-            if(I->repeat != 1){
-                editor_write_cursor_repeat();
-            }
+            // Already one repeat write
+            I->repeat--;
+            editor_write_cursor_repeat();
             editor_reset_write();
             editor_set_mode(MODE_NORMAL);
         }else{
-            // If we repeat, store the buffer all keys pressed to repeat
-            if(I->repeat != 1){
-                editor_prepare_write_repeat(c);
-            }
             editor_write_cursor(c);
+            editor_prepare_write_repeat(c);
         }
     }
 

@@ -1,6 +1,7 @@
 #include "editor.h"
 #include "term.h"
 #include "utils.h"
+#include "action.h"
 
 #include <stdio.h>
 #include <signal.h>
@@ -314,27 +315,6 @@ void editor_refresh_screen(){
     term_draw(buff);
 }
 
-void __write_debug(char *fmt, ...){
-
-    char buff[128];
-    va_list ap;
-    va_start(ap, fmt);
-    int x = vsnprintf(buff, 128, fmt, ap);
-    va_end(ap);
-
-    FILE *f = fopen("debug.txt", "wa");
-    if (f == NULL)
-    {
-        printf("Error opening file!\n");
-        exit(1);
-    }
-
-    fprintf(f, "%s\n", buff);
-
-    fclose(f);
-
-}
-
 void editor_prepare_write_repeat(char ch){
 
     if((I->repeat_buff->len+1 == I->repeat_buff->capacity)){
@@ -357,6 +337,7 @@ void editor_write_cursor(char c){
         return;
     }
 
+    // Second octet
     if(I->last_write_offset == offset){
         // One octet already written in this position
         old_byte = I->file_content[offset];
@@ -365,6 +346,11 @@ void editor_write_cursor(char c){
         new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
         // Most significative first
         //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+
+        // Create the action
+        action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
+        __debug__print_action_list(I->action_list);
+
         I->file_content[offset] = new_byte;
 
         editor_move_cursor(KEY_RIGHT, 1);
@@ -399,12 +385,69 @@ void editor_write_cursor_repeat(){
     }
 }
 
-void editor_undo(){
+void debug_print(HEActionList *list){
+
+    FILE *f = fopen("debug.txt", "wa");
+    fprintf(f, "\n");
+    fprintf(f, "c:%d - f:%d - l:%d", list->current, list->first, list->last);
+    fclose(f);
+}
+
+void editor_redo(){
+
+    HEActionList *list = I->action_list;
+    debug_print(list);
+
+    // If newest change
+    if(list->current->next == NULL){
+        editor_set_status("Already at newest change");
+        return;
+    }
+
+    // We start from base
+    list->current = list->current->next;
+
+    unsigned int offset = list->current->offset;
+    unsigned char c = list->current->c;
+
+    // Store modified value in case of undo
+    list->current->c = I->file_content[offset];
+
+    I->file_content[offset] = c;
+    editor_cursor_at_offset(offset);
+
 
 }
 
+void editor_undo(){
+
+    HEActionList *list = I->action_list;
+    debug_print(list);
+
+    // If oldest change
+    if(list->current->type == ACTION_BASE){
+        editor_set_status("Already at oldest change");
+        return;
+    }
+
+    unsigned int offset = list->current->offset;
+    unsigned char c = list->current->c;
+
+    // Store modified value in case of redo
+    list->current->c = I->file_content[offset];
+
+    // Put back the old value
+    I->file_content[offset] = c;
+    editor_cursor_at_offset(offset);
+
+    list->current = list->current->prev;
+
+}
+
+
 // Process the key pressed
 void editor_process_keypress(){
+
 
     char command[MAX_COMMAND];
     command[0] = '\0';
@@ -451,6 +494,10 @@ void editor_process_keypress(){
 
             // Repeat last write command
             case '.': editor_write_cursor_repeat(); break;
+
+            // Undo/Redo
+            case 'u': editor_undo(); break;
+            case 'r': editor_redo(); break;
 
             // EOF
             case 'G': editor_cursor_at_offset(I->content_length-1); break;
@@ -517,12 +564,13 @@ void editor_init(char *filename){
     I->repeat_buff->capacity = 128;
     I->repeat = 1;
 
+    I->action_list = action_list_init();
+
     I->cursor_y = 1;
     I->cursor_x = 0;
 
     editor_open_file(filename);
-    // ... file open ...
-    // ........
+
     I->file_name = NULL;
 
     term_clear();
@@ -550,6 +598,11 @@ void editor_exit(){
         if (I->status_message != NULL){
             // Free the status_mesasge
             free(I->status_message);
+        }
+        if (I->action_list != NULL){
+            // Free the status_mesasge
+            //TODO: free the double linked list
+            free(I->action_list);
         }
 
         // Clear the screen

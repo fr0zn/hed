@@ -2,6 +2,7 @@
 #define HE_EDITOR_H
 
 #include "buff.h"
+#include "action.h"
 #include <termios.h>
 
 enum editor_mode {
@@ -31,6 +32,8 @@ typedef struct {
     unsigned int bytes_per_line;
     unsigned int bytes_group;
     unsigned int groups_per_line;
+
+    HEActionList *action_list;
 
     // Stores the next command repetitions (from normal mode)
     HEBuff *repeat_buff;

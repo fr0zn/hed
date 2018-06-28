@@ -308,9 +308,6 @@ void __write_debug(char *fmt, ...){
 
 void editor_prepare_write_repeat(char ch){
 
-    char new_byte = 0;
-    char old_byte = 0;
-
     if((I->repeat_buff->len+1 == I->repeat_buff->capacity)){
         I->repeat_buff->content = realloc(I->repeat_buff->content, I->repeat_buff->capacity*2);
         I->repeat_buff->capacity *= 2;
@@ -441,6 +438,7 @@ void editor_process_keypress(){
     }
 
     else if(I->mode == MODE_INSERT){
+        // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC || c == 'q'){
             if(I->repeat != 1){
                 editor_write_cursor_repeat();
@@ -448,7 +446,10 @@ void editor_process_keypress(){
             editor_reset_write();
             editor_set_mode(MODE_NORMAL);
         }else{
-            editor_prepare_write_repeat(c);
+            // If we repeat, store the buffer all keys pressed to repeat
+            if(I->repeat != 1){
+                editor_prepare_write_repeat(c);
+            }
             editor_write_cursor(c);
         }
     }

@@ -242,14 +242,42 @@ void editor_set_status(const char *fmt, ...){
 
 }
 
+// Modes
+
+void editor_start_mode_normal(){
+    editor_set_status("");
+}
+
+void editor_start_mode_insert(){
+    editor_set_status("-- INSERT --");
+    // If we have data in the repeat buffer, start from the index 0 again
+    if(I->repeat_buff->len != 0){
+        I->repeat_buff->len = 0;
+    }
+}
+
+void editor_start_mode_cursor(){
+    editor_set_status("-- CURSOR --");
+}
+
 void editor_set_mode(enum editor_mode mode){
     I->mode = mode;
     switch(I->mode){
-        case MODE_NORMAL:   editor_set_status(""); break;
-        case MODE_INSERT:   editor_set_status("-- INSERT --"); break;
-        case MODE_CURSOR:   editor_set_status("-- CURSOR --"); break;
+        case MODE_NORMAL:   editor_start_mode_normal(); break;
+        case MODE_INSERT:   editor_start_mode_insert(); break;
+        case MODE_CURSOR:   editor_start_mode_cursor(); break;
         case MODE_COMMAND:  break;
     }
+}
+
+void editor_render_ruler(HEBuff* buff){
+
+    // Move to (screen_cols-10,screen_rows);
+    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows, I->screen_cols-20);
+
+    unsigned int offset = editor_offset_at_cursor();
+
+    buff_vappendf(buff, "0x%08x (%d)", offset, offset);
 }
 
 void editor_render_status(HEBuff* buff){
@@ -279,6 +307,7 @@ void editor_refresh_screen(){
 
     editor_render_content(buff);
     editor_render_status(buff);
+    editor_render_ruler(buff);
 
     // Clear the screen and write the buffer on it
     term_clear();

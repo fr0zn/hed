@@ -338,7 +338,7 @@ void editor_write_cursor(char c){
         // Less significative first
         new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
         // Most significative first
-        new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+        //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
         I->file_content[offset] = new_byte;
 
         editor_move_cursor(KEY_RIGHT, 1);
@@ -350,7 +350,7 @@ void editor_write_cursor(char c){
         // Less significative first
         new_byte = (old_byte & 0xf0) | utils_atoh(c) ;
         // Most significative first
-        new_byte = (old_byte & 0x0f) | (utils_atoh(c) << 4) ;
+        //new_byte = (old_byte & 0x0f) | (utils_atoh(c) << 4) ;
         I->file_content[offset] = new_byte;
 
         I->last_byte = old_byte;

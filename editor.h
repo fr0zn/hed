@@ -11,6 +11,7 @@ enum editor_mode {
     MODE_CURSOR       = 0x004,
 };
 
+
 // Struct to store the state of the editor, such as the position on the screen
 // the file content and length and the status message. It also holds the
 // original terminal settings to restore on exit
@@ -32,7 +33,13 @@ typedef struct {
     unsigned int groups_per_line;
 
     // Stores the next command repetitions (from normal mode)
-    int repeat;
+    HEBuff *repeat_buff;
+    unsigned int repeat;
+
+    // Write
+    unsigned char last_byte;
+    unsigned int last_write_offset;
+
 
     char *file_content;  // The content of the file we are working on
     char *file_name; // The name of the file we are working on

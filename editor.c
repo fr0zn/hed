@@ -306,51 +306,72 @@ void __write_debug(char *fmt, ...){
 
 }
 
-void editor_write_cursor(char c, int repeat){
+void editor_prepare_write_repeat(char ch){
 
-    __write_debug("%c - %d",c,repeat);
+    char new_byte = 0;
+    char old_byte = 0;
+
+    if((I->repeat_buff->len+1 == I->repeat_buff->capacity)){
+        I->repeat_buff->content = realloc(I->repeat_buff->content, I->repeat_buff->capacity*2);
+        I->repeat_buff->capacity *= 2;
+    }
+    I->repeat_buff->content[I->repeat_buff->len] = ch;
+    I->repeat_buff->len++;
+}
+
+
+void editor_write_cursor(char c){
+
     char new_byte = 0;
     char old_byte = 0;
 
     unsigned int offset = editor_offset_at_cursor();
 
-     // Get the previous top nible
-    int c2 = old_byte & 0xf0;
-    int c1 = c;
-
-    if(repeat == 1){
-        c2 = utils_read_key();
-
-        if(isxdigit(c1)){
-            if(isxdigit(c2)){
-                new_byte = (utils_atoh(c1) << 4) | utils_atoh(c2);
-            }
-        }
-
-        I->file_content[offset] = new_byte;
-
-    }else{
-
-        // Fill the full bytes
-        for(int i=0; i<repeat; i+=2){
-
-            old_byte = I->file_content[offset];
-
-            new_byte = (utils_atoh(c1) << 4) | utils_atoh(c1);
-            I->file_content[offset] = new_byte;
-
-            editor_move_cursor(KEY_RIGHT, 1);
-            offset = editor_offset_at_cursor();
-        }
-
-        // If repeat is not a full byte, fill the last octet
-        if(repeat%2){
-            old_byte = I->file_content[offset];
-            new_byte = ((old_byte) & 0xf0) | utils_atoh(c1);
-            I->file_content[offset] = new_byte;
-        }
+    if(offset >= I->content_length){
+        return;
     }
 
+    if(I->last_write_offset == offset){
+        // One octet already written in this position
+        old_byte = I->file_content[offset];
+
+        // Less significative first
+        new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
+        // Most significative first
+        new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+        I->file_content[offset] = new_byte;
+
+        editor_move_cursor(KEY_RIGHT, 1);
+
+        I->last_write_offset = -1;
+    }else{
+        old_byte = I->file_content[offset];
+
+        // Less significative first
+        new_byte = (old_byte & 0xf0) | utils_atoh(c) ;
+        // Most significative first
+        new_byte = (old_byte & 0x0f) | (utils_atoh(c) << 4) ;
+        I->file_content[offset] = new_byte;
+
+        I->last_byte = old_byte;
+        I->last_write_offset = offset;
+    }
+
+}
+
+void editor_reset_write(){
+    I->last_write_offset = -1;
+    I->repeat_buff->len = 0;
+}
+
+void editor_write_cursor_repeat(){
+
+
+    for(int r=1; r < I->repeat; r++){
+        for(int c=0; c < I->repeat_buff->len; c++){
+            editor_write_cursor(I->repeat_buff->content[c]);
+        }
+    }
 }
 
 void editor_undo(){
@@ -367,7 +388,8 @@ void editor_process_keypress(){
     int c = utils_read_key();
 
     if(I->mode == MODE_NORMAL){
-
+        // Reset repeat commands
+        I->repeat = 1;
         // TODO: Implement key repeat correctly
         if(c != '0'){
             unsigned int count = 0;
@@ -418,19 +440,16 @@ void editor_process_keypress(){
         }
     }
 
-    else if(I->mode == MODE_CURSOR){
-        if(c == KEY_ESC || c == 'q'){
-            editor_set_mode(MODE_NORMAL);
-        }else{
-            editor_write_cursor(c, I->repeat);
-        }
-    }
-
     else if(I->mode == MODE_INSERT){
         if(c == KEY_ESC || c == 'q'){
+            if(I->repeat != 1){
+                editor_write_cursor_repeat();
+            }
+            editor_reset_write();
             editor_set_mode(MODE_NORMAL);
         }else{
-            editor_write_cursor(c, I->repeat);
+            editor_prepare_write_repeat(c);
+            editor_write_cursor(c);
         }
     }
 
@@ -462,6 +481,11 @@ void editor_init(char *filename){
     I->status_message = malloc(MAX_STATUS_BAR);
 
     // Write
+    I->last_byte = 0;
+    I->last_write_offset = -1;
+    I->repeat_buff = malloc(sizeof(HEBuff));
+    I->repeat_buff->content = malloc(128);
+    I->repeat_buff->capacity = 128;
     I->repeat = 1;
 
     I->cursor_y = 1;

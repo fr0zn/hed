@@ -385,18 +385,9 @@ void editor_write_cursor_repeat(){
     }
 }
 
-void debug_print(HEActionList *list){
-
-    FILE *f = fopen("debug.txt", "wa");
-    fprintf(f, "\n");
-    fprintf(f, "c:%d - f:%d - l:%d", list->current, list->first, list->last);
-    fclose(f);
-}
-
 void editor_redo(){
 
     HEActionList *list = I->action_list;
-    debug_print(list);
 
     // If newest change
     if(list->current->next == NULL){
@@ -404,7 +395,8 @@ void editor_redo(){
         return;
     }
 
-    // We start from base
+    // We start from action base. To redo the last change we have to go to the
+    // next action in the list
     list->current = list->current->next;
 
     unsigned int offset = list->current->offset;
@@ -416,15 +408,13 @@ void editor_redo(){
     I->file_content[offset] = c;
     editor_cursor_at_offset(offset);
 
-
 }
 
 void editor_undo(){
 
     HEActionList *list = I->action_list;
-    debug_print(list);
 
-    // If oldest change
+    // If we hit the action base
     if(list->current->type == ACTION_BASE){
         editor_set_status("Already at oldest change");
         return;

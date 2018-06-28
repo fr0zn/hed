@@ -2,6 +2,7 @@
 #define HE_UTILS_H
 
 int utils_read_key();
+unsigned char utils_atoh (unsigned char chr);
 
 // Key enumeration, returned by utils_read_key().
 enum key_codes {

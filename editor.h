@@ -8,6 +8,7 @@ enum editor_mode {
     MODE_NORMAL       = 0x001,
     MODE_COMMAND      = 0x002,
     MODE_INSERT       = 0x003,
+    MODE_CURSOR       = 0x004,
 };
 
 // Struct to store the state of the editor, such as the position on the screen
@@ -29,6 +30,9 @@ typedef struct {
     unsigned int bytes_per_line;
     unsigned int bytes_group;
     unsigned int groups_per_line;
+
+    // Stores the next command repetitions (from normal mode)
+    int repeat;
 
     char *file_content;  // The content of the file we are working on
     char *file_name; // The name of the file we are working on

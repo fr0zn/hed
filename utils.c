@@ -11,3 +11,12 @@ int utils_read_key(){
 
     return c;
 }
+
+unsigned char utils_atoh (unsigned char chr){
+
+    if (chr > '9'){
+        chr += 9;
+    }
+
+    return (chr &= 0x0F);
+}

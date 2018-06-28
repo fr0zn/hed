@@ -187,7 +187,7 @@ void editor_render_content(HEBuff* buff){
         asc[offset % I->bytes_per_line] = I->file_content[offset];
 
         // Write the value on the screen (HEBuff)
-        buff_vappendf(buff, "%02x", I->file_content[offset]);
+        buff_vappendf(buff, "%02x", (unsigned int) I->file_content[offset] & 0xff);
         buff_append(buff, "\x1b[0m", 4);
         line_chars += 2;
         line_bytes += 1;
@@ -247,6 +247,7 @@ void editor_set_mode(enum editor_mode mode){
     switch(I->mode){
         case MODE_NORMAL:   editor_set_status(""); break;
         case MODE_INSERT:   editor_set_status("-- INSERT --"); break;
+        case MODE_CURSOR:   editor_set_status("-- CURSOR --"); break;
         case MODE_COMMAND:  break;
     }
 }
@@ -284,63 +285,153 @@ void editor_refresh_screen(){
     term_draw(buff);
 }
 
+void __write_debug(char *fmt, ...){
 
-void editor_render_ruler(){
+    char buff[128];
+    va_list ap;
+    va_start(ap, fmt);
+    int x = vsnprintf(buff, 128, fmt, ap);
+    va_end(ap);
+
+    FILE *f = fopen("debug.txt", "wa");
+    if (f == NULL)
+    {
+        printf("Error opening file!\n");
+        exit(1);
+    }
+
+    fprintf(f, "%s\n", buff);
+
+    fclose(f);
+
+}
+
+void editor_write_cursor(char c, int repeat){
+
+    __write_debug("%c - %d",c,repeat);
+    char new_byte = 0;
+    char old_byte = 0;
+
+    unsigned int offset = editor_offset_at_cursor();
+
+     // Get the previous top nible
+    int c2 = old_byte & 0xf0;
+    int c1 = c;
+
+    if(repeat == 1){
+        c2 = utils_read_key();
+
+        if(isxdigit(c1)){
+            if(isxdigit(c2)){
+                new_byte = (utils_atoh(c1) << 4) | utils_atoh(c2);
+            }
+        }
+
+        I->file_content[offset] = new_byte;
+
+    }else{
+
+        // Fill the full bytes
+        for(int i=0; i<repeat; i+=2){
+
+            old_byte = I->file_content[offset];
+
+            new_byte = (utils_atoh(c1) << 4) | utils_atoh(c1);
+            I->file_content[offset] = new_byte;
+
+            editor_move_cursor(KEY_RIGHT, 1);
+            offset = editor_offset_at_cursor();
+        }
+
+        // If repeat is not a full byte, fill the last octet
+        if(repeat%2){
+            old_byte = I->file_content[offset];
+            new_byte = ((old_byte) & 0xf0) | utils_atoh(c1);
+            I->file_content[offset] = new_byte;
+        }
+    }
+
+}
+
+void editor_undo(){
+
 }
 
 // Process the key pressed
 void editor_process_keypress(){
 
     char command[MAX_COMMAND];
+    command[0] = '\0';
 
     // Read first command char
     int c = utils_read_key();
 
-    // TODO: Implement key repeat correctly
-    int repeat = 1;
+    if(I->mode == MODE_NORMAL){
 
-    if(c != '0'){
-        unsigned int count = 0;
-        while(isdigit(c) && count < 5){
-            command[count] = c;
-            command[count+1] = '\0';
-            editor_render_command(command);
-            count++;
-            repeat = atoi(command);
-            c = utils_read_key();
+        // TODO: Implement key repeat correctly
+        if(c != '0'){
+            unsigned int count = 0;
+            while(isdigit(c) && count < 5){
+                command[count] = c;
+                command[count+1] = '\0';
+                editor_render_command(command);
+                c = utils_read_key();
+                count++;
+            }
+
+            // Store in case we change mode
+            I->repeat = atoi(command);
+            if(I->repeat <= 0 ){
+                I->repeat = 1;
+            }
+        }
+
+        switch (c){
+            case 'q': exit(0); break;
+
+            case 'h': editor_move_cursor(KEY_LEFT, I->repeat); break;
+            case 'j': editor_move_cursor(KEY_DOWN, I->repeat); break;
+            case 'k': editor_move_cursor(KEY_UP, I->repeat); break;
+            case 'l': editor_move_cursor(KEY_RIGHT, I->repeat); break;
+
+            case 'w': editor_move_cursor(KEY_RIGHT, I->repeat*I->bytes_group); break;
+            case 'b': editor_move_cursor(KEY_LEFT, I->repeat*I->bytes_group); break;
+
+            // Modes
+            case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
+            case 'i': editor_set_mode(MODE_INSERT); break;
+            case 'c': editor_set_mode(MODE_CURSOR); break;
+
+            // EOF
+            case 'G': editor_cursor_at_offset(I->content_length-1); break;
+            case 'g':
+                editor_render_command("g");
+                c = utils_read_key();
+                if(c == 'g'){
+                    editor_cursor_at_offset(0);
+                }
+                break;
+            // Start of line
+            case '0': I->cursor_x = 0; break;
+            // End of line
+            case '$': editor_move_cursor(KEY_RIGHT, I->bytes_per_line-1 - I->cursor_x); break;
         }
     }
 
+    else if(I->mode == MODE_CURSOR){
+        if(c == KEY_ESC || c == 'q'){
+            editor_set_mode(MODE_NORMAL);
+        }else{
+            editor_write_cursor(c, I->repeat);
+        }
+    }
 
-    switch (c){
-        case 'q': exit(0); break;
-
-        case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
-
-        case 'h': editor_move_cursor(KEY_LEFT, repeat); break;
-        case 'j': editor_move_cursor(KEY_DOWN, repeat); break;
-        case 'k': editor_move_cursor(KEY_UP, repeat); break;
-        case 'l': editor_move_cursor(KEY_RIGHT, repeat); break;
-
-        case 'w': editor_move_cursor(KEY_RIGHT, repeat*I->bytes_group); break;
-        case 'b': editor_move_cursor(KEY_LEFT, repeat*I->bytes_group); break;
-
-        // Modes
-        case 'i': editor_set_mode(MODE_INSERT); break;
-
-        // EOF
-        case 'G': editor_cursor_at_offset(I->content_length-1); break;
-        case 'g':
-            editor_render_command("g");
-            c = utils_read_key();
-            if(c == 'g'){
-                editor_cursor_at_offset(0);
-            }
-            break;
-        // Start of line
-        case '0': I->cursor_x = 0; break;
-        // End of line
-        case '$': editor_move_cursor(KEY_RIGHT, I->bytes_per_line-1 - I->cursor_x); break;
+    else if(I->mode == MODE_INSERT){
+        if(c == KEY_ESC || c == 'q'){
+            editor_set_mode(MODE_NORMAL);
+        }else{
+            editor_write_cursor(c, I->repeat);
+        }
     }
 
 }
@@ -369,6 +460,9 @@ void editor_init(char *filename){
     // status bar & mode
     I->mode = MODE_NORMAL;
     I->status_message = malloc(MAX_STATUS_BAR);
+
+    // Write
+    I->repeat = 1;
 
     I->cursor_y = 1;
     I->cursor_x = 0;

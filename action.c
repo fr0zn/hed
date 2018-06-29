@@ -5,19 +5,6 @@
 #include <stdarg.h>
 
 
-void __debug__print_action_list(HEActionList *list){
-
-    char buff[128];
-    FILE *f = fopen("debug.txt", "wa");
-    HEAction *tmp = list->first;
-    fprintf(f, "\n");
-    while(tmp->next != NULL){
-        fprintf(f, "0x%x - %c -> ", tmp->offset, tmp->c);
-        tmp = tmp->next;
-    }
-    fclose(f);
-}
-
 void action_list_print(HEActionList* list) {
 	HEAction* node = list->first;
 	if (node == NULL) {
@@ -25,7 +12,7 @@ void action_list_print(HEActionList* list) {
 		return;
 	}
 	while (node != NULL) {
-		fprintf(stderr, "(%d, %s, %02x) -> ", node->offset, action_names[node->type], node->c);
+		fprintf(stderr, "(%d, %s, %02x-%02x) -> ", node->offset, action_names[node->type], node->b.o, node->b.c);
 		node = node->next;
 		if (node == NULL) {
 			fprintf(stderr, "END\n");
@@ -33,12 +20,12 @@ void action_list_print(HEActionList* list) {
 	}
 }
 
-void action_add(HEActionList *list, enum action_type type, unsigned int offset, unsigned char c){
+void action_add(HEActionList *list, enum action_type type, unsigned int offset, unsigned char o, unsigned char c){
 
     HEAction *action = malloc(sizeof(HEAction));
     action->type   = type;
     action->offset = offset;
-    action->c      = c;
+    action->b      = (byte_t){o,c};
     action->next   = NULL; // We are the last
     action->prev   = NULL; // In case we are the first
 
@@ -78,6 +65,6 @@ HEActionList* action_list_init(){
     a_list->first   = NULL;
     a_list->last    = NULL;
     a_list->current = NULL;
-    action_add(a_list, ACTION_BASE, 0, '\0'); // Add one base action
+    action_add(a_list, ACTION_BASE, 0, 0, 0); // Add one base action
     return a_list;
 }

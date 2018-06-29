@@ -64,7 +64,11 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
         // Cursor
         if(I->cursor_y == row){
             if(I->cursor_x == i){
-                buff_append(buff, "\x1b[7m", 4);
+                if(I->in_ascii){
+                    buff_append(buff, "\x1b[43m\x1b[30m", 10);
+                }else{
+                    buff_append(buff, "\x1b[7m", 4);
+                }
             }
         }
 
@@ -284,7 +288,11 @@ void editor_render_content(HEBuff* buff){
         // Cursor
         if(I->cursor_y == row){
             if(I->cursor_x == line_bytes){
-                buff_append(buff, "\x1b[7m", 4);
+                if(I->in_ascii){
+                    buff_append(buff, "\x1b[7m", 4);
+                }else{
+                    buff_append(buff, "\x1b[43m\x1b[30m", 10);
+                }
             }
         }
 
@@ -303,7 +311,7 @@ void editor_render_content(HEBuff* buff){
 
         // Every group, write a separator of len PADDING, unless its the
         // last in line or the last row
-        if((offset % I->bytes_group) && (line_bytes != I->bytes_per_line)){
+        if((line_bytes % I->bytes_group == 0) && (line_bytes != I->bytes_per_line)){
             for(int s=0; s < PADDING; s++){
                 buff_append(buff, " ", 1);
                 line_chars += 1;
@@ -413,12 +421,16 @@ void editor_set_mode(enum editor_mode mode){
 
 void editor_render_ruler(HEBuff* buff){
 
+    // Left ruler
     // Move to (screen_cols-10,screen_rows);
-    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, I->screen_cols-20);
+    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, 0);
+    buff_vappendf(buff, "[%s]", I->file_name);
 
     unsigned int offset = editor_offset_at_cursor();
 
-    buff_vappendf(buff, "0x%08x (%d)", offset, offset);
+    // Right ruler
+    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, I->screen_cols - 25);
+    buff_vappendf(buff, "0x%08x (%d)  %d%%", offset, offset, (offset*100/I->content_length));
 }
 
 void editor_render_status(HEBuff* buff){
@@ -916,8 +928,6 @@ void editor_init(char *filename){
     I->cursor_x = 0;
 
     editor_open_file(filename);
-
-    I->file_name = NULL;
 
     term_clear();
     // Register the resize handler

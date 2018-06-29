@@ -752,7 +752,13 @@ void editor_process_keypress(){
             case  KEY_CTRL_R: editor_redo(I->repeat); break;
 
             // EOF
-            case 'G': editor_cursor_at_offset(I->content_length-1); break;
+            case 'G':
+                if(I->repeat != 1){
+                    editor_cursor_at_offset(I->repeat);
+                }else{
+                    editor_cursor_at_offset(I->content_length-1);
+                }
+                break;
             case 'g':
                 editor_render_command("g");
                 c = utils_read_key();

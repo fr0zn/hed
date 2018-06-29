@@ -226,12 +226,16 @@ void editor_render_content(HEBuff* buff){
         }
     }
 
-    while( (chars_until_ascii - line_chars) != 0){
-            buff_append(buff, " ", 1);
-            line_chars++;
+    // If we need padding for ascii
+    if(offset % I->bytes_per_line != 0){
+        // Fill until the ascii chars in case of short line
+        while( line_chars < chars_until_ascii){
+                buff_append(buff, " ", 1);
+                line_chars++;
+        }
+        // Render ascii
+        editor_render_ascii(row, line_offset_start, line_bytes);
     }
-
-    editor_render_ascii(row, line_offset_start, line_bytes);
 
 }
 
@@ -269,8 +273,6 @@ void editor_start_mode_replace(){
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
     }
-    // Reset repeat commands
-    I->repeat = 1;
 }
 
 void editor_start_mode_insert(){
@@ -279,8 +281,6 @@ void editor_start_mode_insert(){
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
     }
-    // Reset repeat commands
-    I->repeat = 1;
 }
 
 void editor_start_mode_cursor(){
@@ -349,7 +349,7 @@ void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
 
 void editor_prepare_write_repeat(char ch){
 
-    if((I->repeat_buff->len+1 == I->repeat_buff->capacity)){
+    if((I->repeat_buff->len+1 >= I->repeat_buff->capacity)){
         I->repeat_buff->content = realloc(I->repeat_buff->content, I->repeat_buff->capacity*2);
         I->repeat_buff->capacity *= 2;
     }
@@ -402,9 +402,75 @@ void editor_replace_cursor(char c){
 
 }
 
+void editor_insert_offset(unsigned int offset, unsigned char c){
+
+    char new_byte = 0;
+    char old_byte = 0;
+
+    if(offset >= I->content_length){
+        return;
+    }
+
+    // Second octet
+    if(I->last_write_offset == offset){
+
+        // One octet already written in this position
+        old_byte = I->content[offset].c;
+
+        // Less significative first
+        new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
+        // Most significative first
+        //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+
+        editor_write_byte_offset(new_byte, offset);
+
+        editor_move_cursor(KEY_RIGHT, 1);
+
+        I->last_write_offset = -1;
+
+    }else{
+    // First octet
+        // Increase allocation by one byte_t
+        // TODO: only if not space already
+        I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
+
+        // Move data from the current offset to offset + 1
+        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+
+        editor_write_byte_offset(c, offset);
+
+        I->last_byte = old_byte;
+        I->last_write_offset = offset;
+
+        // Create the action
+        action_add(I->action_list, ACTION_INSERT, offset, I->last_byte);
+
+        I->content_length++;
+
+    }
+
+}
+
 void editor_insert_cursor(char c){
-    /*I->content = realloc(I->content, I->content_length + 1);*/
-    /*I->content = realloc(I->content, I->content_length + 1);*/
+
+    unsigned int offset = editor_offset_at_cursor();
+    editor_insert_offset(offset, c);
+
+}
+
+void editor_insert_cursor_repeat(){
+
+    for(int r=0; r < I->repeat; r++){
+        for(int c=0; c < I->repeat_buff->len; c++){
+            editor_insert_cursor(I->repeat_buff->content[c]);
+        }
+    }
+}
+
+void editor_delete_char_at_offset(unsigned int offset) {
+    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
+    I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+    I->content_length--;
 }
 
 void editor_reset_write_repeat(){
@@ -420,30 +486,50 @@ void editor_replace_cursor_repeat(){
     }
 }
 
+void editor_repeat_last_action(){
+
+    HEActionList *list = I->action_list;
+
+    switch(list->last->type){
+        case ACTION_BASE: break;
+        case ACTION_REPLACE: editor_replace_cursor_repeat(); break;
+        case ACTION_INSERT: editor_insert_cursor_repeat(); break;
+
+    }
+
+
+}
+
 void editor_redo(int repeat){
 
     HEActionList *list = I->action_list;
 
-    for(int i = 0; i<repeat; i++){
+    // If newest change
+    if(list->current->next == NULL){
+        editor_set_status("Already at newest change");
+        return;
+    }
 
-        // If newest change
-        if(list->current->next == NULL){
+    // We start from action base. To redo the last change we have to go to the
+    // next action in the list
+    list->current = list->current->next;
+
+    unsigned int offset = list->current->offset;
+    unsigned char c = list->current->c;
+
+    switch(list->current->type){
+        case ACTION_BASE:
             editor_set_status("Already at newest change");
             return;
-        }
+        case ACTION_REPLACE:
+            // Store modified value in case of undo
+            list->current->c = I->content[offset].c;
+            I->content[offset].c = c;
+            editor_cursor_at_offset(offset);
+            break;
+        case ACTION_INSERT:
+            break;
 
-        // We start from action base. To redo the last change we have to go to the
-        // next action in the list
-        list->current = list->current->next;
-
-        unsigned int offset = list->current->offset;
-        unsigned char c = list->current->c;
-
-        // Store modified value in case of undo
-        list->current->c = I->content[offset].c;
-
-        I->content[offset].c = c;
-        editor_cursor_at_offset(offset);
     }
 
 }
@@ -452,26 +538,25 @@ void editor_undo(int repeat){
 
     HEActionList *list = I->action_list;
 
-    for(int i = 0; i<repeat; i++){
-        // If we hit the action base
-        if(list->current->type == ACTION_BASE){
+    unsigned int offset = list->current->offset;
+    unsigned char c = list->current->c;
+
+    switch(list->current->type){
+        case ACTION_BASE:
             editor_set_status("Already at oldest change");
             return;
-        }
-
-        unsigned int offset = list->current->offset;
-        unsigned char c = list->current->c;
-
-        // Store modified value in case of redo
-        list->current->c = I->content[offset].c;
-
-        // Put back the old value
-        I->content[offset].c = c;
-        editor_cursor_at_offset(offset);
-
-        list->current = list->current->prev;
+        case ACTION_REPLACE:
+            // Store modified value in case of redo
+            list->current->c = I->content[offset].c;
+            I->content[offset].c = c;
+            editor_cursor_at_offset(offset);
+            break;
+        case ACTION_INSERT:
+            break;
 
     }
+
+    list->current = list->current->prev;
 
 }
 
@@ -522,7 +607,7 @@ void editor_process_keypress(){
             case 'r': editor_set_mode(MODE_REPLACE); break;
 
             // TODO: Repeat last write command
-            case '.': editor_replace_cursor_repeat(); break;
+            case '.': editor_repeat_last_action(); break;
 
             // Undo/Redo
             case 'u': editor_undo(I->repeat); break;
@@ -560,8 +645,14 @@ void editor_process_keypress(){
     else if(I->mode == MODE_INSERT){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC || c == 'q'){
+            // Already one repeat write
+            I->repeat--;
+            editor_insert_cursor_repeat();
+            editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
         }else{
+            editor_insert_cursor(c);
+            editor_prepare_write_repeat(c);
         }
     }
     else if(I->mode == MODE_CURSOR){

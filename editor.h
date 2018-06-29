@@ -36,6 +36,8 @@ typedef struct {
     unsigned int bytes_group;
     unsigned int groups_per_line;
 
+    unsigned int scrolled; // Lines scrolled
+
     HEActionList *action_list;
 
     bool in_ascii;

@@ -120,7 +120,7 @@ void editor_calculate_bytes_per_line(){
 
 unsigned int editor_offset_at_cursor(){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
-    unsigned int offset = (I->cursor_y - 1) * (I->bytes_per_line) + (I->cursor_x);
+    unsigned int offset = (I->cursor_y - 1 + I->scrolled) * (I->bytes_per_line) + (I->cursor_x);
     if (offset <= 0) {
         return 0;
     }
@@ -130,10 +130,45 @@ unsigned int editor_offset_at_cursor(){
     return offset;
 }
 
-void editor_cursor_at_offset(unsigned int offset){
+void editor_cursor_offset(unsigned int offset){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
     I->cursor_x = offset % I->bytes_per_line;
-    I->cursor_y = offset / I->bytes_per_line + 1;
+    I->cursor_y = offset / I->bytes_per_line - I->scrolled + 1;
+}
+
+void editor_cursor_offset_scroll(unsigned int offset){
+    if(offset > I->content_length){
+        // Out of bounds
+    }
+
+    // Check if offset is in view range
+    unsigned int offset_min = I->scrolled * I->bytes_per_line;
+	unsigned int offset_max = offset_min + ((I->screen_rows-3) * I->bytes_per_line);
+
+    if (offset >= offset_min && offset <= offset_max) {
+        editor_cursor_offset(offset);
+        return;
+    }
+
+    I->scrolled = offset / I->bytes_per_line; // - (I->screen_rows / 2);
+
+    if (I->scrolled <= 0) {
+        I->scrolled = 0;
+    }
+
+    editor_cursor_offset(offset);
+}
+
+
+void editor_scroll(int units) {
+
+    I->scrolled += units;
+
+    /*int upper_limit = I->content_length / I->bytes_per_line - (I->screen_rows - 3);*/
+    /*if (I->scrolled >= upper_limit) {*/
+        /*I->scrolled = upper_limit;*/
+    /*}*/
+
 }
 
 void editor_move_cursor(int dir, int amount){
@@ -145,9 +180,11 @@ void editor_move_cursor(int dir, int amount){
             case KEY_RIGHT: I->cursor_x++; break;
         }
 
-        // Stop top limit
-        if(I->cursor_y <= 1){
+        // Beggining of file, stop
+        if(I->cursor_x <= 0 && I->cursor_y <= 1 && I->scrolled <= 0){
+            I->cursor_x = 0;
             I->cursor_y = 1;
+            return;
         }
 
         // Stop left limit
@@ -163,14 +200,27 @@ void editor_move_cursor(int dir, int amount){
 
         // Stop right limit
         if(I->cursor_x >= I->bytes_per_line){
-            I->cursor_x = 0;
             I->cursor_y++;
+            I->cursor_x = 0;
+        }
+
+        // Stop top file limit
+        if(I->cursor_y <= 1 && I->scrolled <= 0){
+            I->cursor_y = 1;
+        }
+
+        if(I->cursor_y > I->screen_rows - 2){
+            I->cursor_y = I->screen_rows - 2;
+            editor_scroll(1);
+        }else if (I->cursor_y < 1 && I->scrolled > 0){
+            I->cursor_y = 1;
+            editor_scroll(-1);
         }
 
         unsigned int offset = editor_offset_at_cursor();
 
         if (offset >= I->content_length - 1) {
-            editor_cursor_at_offset(offset);
+            editor_cursor_offset(offset);
         }
     }
 
@@ -193,7 +243,23 @@ void editor_render_content(HEBuff* buff){
 
     chars_until_ascii = 10 + I->bytes_per_line * 2 + I->bytes_per_line/2;
 
-    for (offset = 0; offset < I->content_length; offset++){
+
+    int offset_start = I->scrolled * I->bytes_per_line;
+
+    if(offset_start >= I->content_length){
+        offset_start = I->content_length - I->bytes_per_line;
+    }
+
+    int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2); // ruler + status
+    int offset_end = bytes_per_screen + offset_start;
+
+    // Don't show more than content_length
+    if(offset_end > I->content_length ){
+        offset_end = I->content_length;
+    }
+
+
+    for (offset = offset_start; offset < offset_end; offset++){
         // New row
         if(offset % I->bytes_per_line == 0 ){
             line_chars = 0;
@@ -646,11 +712,11 @@ void editor_redo(int repeat){
         case ACTION_REPLACE:
             // Store modified value in case of undo
             editor_undo_redo_replace_offset(offset, b);
-            editor_cursor_at_offset(offset);
+            editor_cursor_offset_scroll(offset);
             break;
         case ACTION_INSERT:
             editor_redo_insert_offset(offset, b);
-            editor_cursor_at_offset(offset);
+            editor_cursor_offset_scroll(offset);
             break;
         case ACTION_APPEND: break;
         case ACTION_DELETE: break;
@@ -672,15 +738,15 @@ void editor_undo(int repeat){
         case ACTION_REPLACE:
             // Store modified value in case of redo
             editor_undo_redo_replace_offset(offset, b);
-            editor_cursor_at_offset(offset);
+            editor_cursor_offset_scroll(offset);
             break;
         case ACTION_INSERT:
             editor_undo_insert_offset(offset);
-            editor_cursor_at_offset(offset);
+            editor_cursor_offset_scroll(offset);
             break;
         case ACTION_DELETE:
             editor_redo_insert_offset(offset, b);
-            editor_cursor_at_offset(offset);
+            editor_cursor_offset_scroll(offset);
             break;
         case ACTION_APPEND: break;
 
@@ -754,16 +820,16 @@ void editor_process_keypress(){
             // EOF
             case 'G':
                 if(I->repeat != 1){
-                    editor_cursor_at_offset(I->repeat);
+                    editor_cursor_offset_scroll(I->repeat);
                 }else{
-                    editor_cursor_at_offset(I->content_length-1);
+                    editor_cursor_offset_scroll(I->content_length-1);
                 }
                 break;
             case 'g':
                 editor_render_command("g");
                 c = utils_read_key();
                 if(c == 'g'){
-                    editor_cursor_at_offset(0);
+                    editor_cursor_offset_scroll(0);
                 }
                 break;
             // Start of line
@@ -829,6 +895,7 @@ void editor_init(char *filename){
     // Set HEState variables
     I->bytes_group = 2;
     I->groups_per_line = 8;
+    I->scrolled = 0;
 
     // status bar & mode
     I->mode = MODE_NORMAL;

@@ -9,6 +9,14 @@ enum action_type {
     ACTION_APPEND
 };
 
+static const char* action_names[] = {
+    "base",
+    "replace",
+    "insert",
+    "delete",
+    "append"
+};
+
 typedef struct action_t{
     struct action_t *prev;
     struct action_t *next;

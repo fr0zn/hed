@@ -18,6 +18,21 @@ void __debug__print_action_list(HEActionList *list){
     fclose(f);
 }
 
+void action_list_print(HEActionList* list) {
+	HEAction* node = list->first;
+	if (node == NULL) {
+		fprintf(stderr, "Nothing to delete, head is null\n");
+		return;
+	}
+	while (node != NULL) {
+		fprintf(stderr, "(%d, %s, %02x) -> ", node->offset, action_names[node->type], node->c);
+		node = node->next;
+		if (node == NULL) {
+			fprintf(stderr, "END\n");
+		}
+	}
+}
+
 void action_add(HEActionList *list, enum action_type type, unsigned int offset, unsigned char c){
 
     HEAction *action = malloc(sizeof(HEAction));
@@ -54,7 +69,7 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset, 
     list->last    = action;
     list->current = action;
 
-    //__debug__print_action_list(list);
+    action_list_print(list);
 
 }
 

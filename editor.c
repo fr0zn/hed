@@ -357,12 +357,10 @@ void editor_prepare_write_repeat(char ch){
     I->repeat_buff->len++;
 }
 
-void editor_replace_cursor(char c){
+void editor_replace_offset(unsigned int offset, unsigned char c){
 
     char new_byte = 0;
     char old_byte = 0;
-
-    unsigned int offset = editor_offset_at_cursor();
 
     if(offset >= I->content_length){
         return;
@@ -384,7 +382,8 @@ void editor_replace_cursor(char c){
 
         I->last_write_offset = -1;
     }else{
-        old_byte = I->content[offset].o;
+
+        old_byte = I->content[offset].c;
 
         // Less significative first
         new_byte = (old_byte & 0xf0) | utils_atoh(c) ;
@@ -399,6 +398,13 @@ void editor_replace_cursor(char c){
         // Create the action
         action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
     }
+
+}
+
+void editor_replace_cursor(char c){
+
+    unsigned int offset = editor_offset_at_cursor();
+    editor_replace_offset(offset, c);
 
 }
 
@@ -424,6 +430,9 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
         editor_write_byte_offset(new_byte, offset);
 
+        // Modify the last action, since its the insert on this offset
+        I->action_list->last->c = new_byte;
+
         editor_move_cursor(KEY_RIGHT, 1);
 
         I->last_write_offset = -1;
@@ -437,13 +446,12 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         // Move data from the current offset to offset + 1
         memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
 
-        editor_write_byte_offset(c, offset);
-
-        I->last_byte = old_byte;
+        new_byte = utils_atoh(c) & 0xf;
+        editor_write_byte_offset(new_byte, offset);
         I->last_write_offset = offset;
 
         // Create the action
-        action_add(I->action_list, ACTION_INSERT, offset, I->last_byte);
+        action_add(I->action_list, ACTION_INSERT, offset, new_byte);
 
         I->content_length++;
 
@@ -467,6 +475,19 @@ void editor_insert_cursor_repeat(){
     }
 }
 
+void editor_undo_insert_offset(unsigned int offset){
+    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
+    I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+    I->content_length--;
+}
+
+void editor_redo_insert_offset(unsigned int offset, unsigned char c){
+    I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
+    memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+    I->content[offset].c = c;
+    I->content_length++;
+}
+
 void editor_delete_char_at_offset(unsigned int offset) {
     memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
@@ -475,6 +496,13 @@ void editor_delete_char_at_offset(unsigned int offset) {
 
 void editor_reset_write_repeat(){
     I->last_write_offset = -1;
+}
+
+void editor_undo_redo_replace_offset(unsigned int offset, unsigned char c){
+    HEActionList *list = I->action_list;
+    list->current->c = I->content[offset].c;
+    I->content[offset].c = c;
+
 }
 
 void editor_replace_cursor_repeat(){
@@ -496,7 +524,6 @@ void editor_repeat_last_action(){
         case ACTION_INSERT: editor_insert_cursor_repeat(); break;
 
     }
-
 
 }
 
@@ -523,11 +550,12 @@ void editor_redo(int repeat){
             return;
         case ACTION_REPLACE:
             // Store modified value in case of undo
-            list->current->c = I->content[offset].c;
-            I->content[offset].c = c;
+            editor_undo_redo_replace_offset(offset, c);
             editor_cursor_at_offset(offset);
             break;
         case ACTION_INSERT:
+            editor_redo_insert_offset(offset, c);
+            editor_cursor_at_offset(offset);
             break;
 
     }
@@ -547,11 +575,12 @@ void editor_undo(int repeat){
             return;
         case ACTION_REPLACE:
             // Store modified value in case of redo
-            list->current->c = I->content[offset].c;
-            I->content[offset].c = c;
+            editor_undo_redo_replace_offset(offset, c);
             editor_cursor_at_offset(offset);
             break;
         case ACTION_INSERT:
+            editor_undo_insert_offset(offset);
+            editor_cursor_at_offset(offset);
             break;
 
     }

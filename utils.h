@@ -1,6 +1,8 @@
 #ifndef HE_UTILS_H
 #define HE_UTILS_H
 
+#include <stdint.h>
+
 int utils_read_key();
 unsigned char utils_atoh (unsigned char chr);
 
@@ -28,5 +30,10 @@ enum key_codes {
     KEY_PAGEUP,         // ??
     KEY_PAGEDOWN,       // ??
 };
+
+typedef struct {
+    uint8_t o; // Original
+    uint8_t c; // Current
+} byte_t;
 
 #endif

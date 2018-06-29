@@ -526,7 +526,7 @@ void editor_process_keypress(){
 
             // Undo/Redo
             case 'u': editor_undo(I->repeat); break;
-            //case 'r': editor_redo(I->repeat); break;
+            case  KEY_CTRL_R: editor_redo(I->repeat); break;
 
             // EOF
             case 'G': editor_cursor_at_offset(I->content_length-1); break;

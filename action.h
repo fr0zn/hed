@@ -13,7 +13,6 @@ typedef struct action_t{
     struct action_t *prev;
     struct action_t *next;
 
-
     enum action_type type;
     unsigned int offset;
 

@@ -32,24 +32,34 @@ void editor_open_file(char *filename){
         exit(1);
     }
 
-    I->file_content = malloc(statbuf.st_size);
+    // Top byte (original)
+    I->content = malloc(statbuf.st_size*sizeof(byte_t));
+
     I->file_name = malloc(strlen(filename));
     I->content_length = statbuf.st_size;
 
     strcpy(I->file_name, filename);
 
-    if(fread(I->file_content, 1, statbuf.st_size, fp) < (size_t) statbuf.st_size){
-        perror("Unable to read file content");
-        free(I->file_content);
-        exit(1);
+    uint8_t c; // Single c read
+    for(int i = 0; i < statbuf.st_size; i++){
+        fread(&c, 1, 1, fp);
+        I->content[i].o = c;
+        I->content[i].c = c;
     }
+
+    fclose(fp);
+
 }
 
 
-void editor_render_ascii(HEBuff* buff, int row, char *asc, unsigned int len){
-    char c;
+void editor_render_ascii(int row, unsigned int start, unsigned int len){
+
+    byte_t *c;
+    HEBuff* buff = I->buff;
+
     for(int i = 0; i < len; i++){
-        c = asc[i];
+        // Get byte to write
+        c = &I->content[start + i];
 
         // Cursor
         if(I->cursor_y == row){
@@ -58,8 +68,12 @@ void editor_render_ascii(HEBuff* buff, int row, char *asc, unsigned int len){
             }
         }
 
-        if(isprint(c)){
-            buff_vappendf(buff, "%c", c);
+        if(c->c != c->o){
+            buff_append(buff, "\x1b[31m", 5);
+        }
+
+        if(isprint(c->c)){
+            buff_vappendf(buff, "%c", c->c);
         }else{
             buff_append(buff, ".", 1);
         }
@@ -150,10 +164,11 @@ void editor_move_cursor(int dir, int amount){
 
 void editor_render_content(HEBuff* buff){
 
-    char *asc;
     unsigned int line_chars = 0;
     unsigned int line_bytes = 0;
     unsigned int chars_until_ascii = 0;
+
+    unsigned int line_offset_start = 0;
 
     int row = 0;
     int col = 0;
@@ -164,18 +179,18 @@ void editor_render_content(HEBuff* buff){
 
     chars_until_ascii = 10 + I->bytes_per_line * 2 + I->bytes_per_line/2;
 
-    // Ascii
-    asc = malloc(I->bytes_per_line);
-
     for (offset = 0; offset < I->content_length; offset++){
         // New row
         if(offset % I->bytes_per_line == 0 ){
             line_chars = 0;
             line_bytes = 0;
-            buff_vappendf(buff, "%08x: ", offset);
+            line_offset_start = offset;
+            buff_vappendf(buff, "\x1b[34m%08x: ", offset);
             line_chars += 10;
             row++;
         }
+
+        buff_append(buff, "\x1b[0m", 4);
 
         // Cursor
         if(I->cursor_y == row){
@@ -184,11 +199,14 @@ void editor_render_content(HEBuff* buff){
             }
         }
 
-        // Store the value to asc buffer
-        asc[offset % I->bytes_per_line] = I->file_content[offset];
-
         // Write the value on the screen (HEBuff)
-        buff_vappendf(buff, "%02x", (unsigned int) I->file_content[offset] & 0xff);
+        // If the value is changed
+        if(I->content[offset].c != I->content[offset].o){
+            buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c & 0xff);
+        }else{
+            buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c & 0xff);
+        }
+        // Reset color
         buff_append(buff, "\x1b[0m", 4);
         line_chars += 2;
         line_bytes += 1;
@@ -202,7 +220,7 @@ void editor_render_content(HEBuff* buff){
         }
         // If end of line, write ascii and new line
         if((offset + 1) % I->bytes_per_line == 0){
-            editor_render_ascii(buff, row, asc, I->bytes_per_line);
+            editor_render_ascii(row, line_offset_start, I->bytes_per_line);
             line_chars += I->bytes_per_line; // ascii chars
             buff_append(buff, "\r\n", 2);
         }
@@ -213,11 +231,7 @@ void editor_render_content(HEBuff* buff){
             line_chars++;
     }
 
-    editor_render_ascii(buff, row, asc, line_bytes);
-
-    free(asc);
-
-    // padding chars
+    editor_render_ascii(row, line_offset_start, line_bytes);
 
 }
 
@@ -249,12 +263,24 @@ void editor_start_mode_normal(){
     editor_set_status("");
 }
 
+void editor_start_mode_replace(){
+    editor_set_status("-- REPLACE --");
+    // If we have data in the repeat buffer, start from the index 0 again
+    if(I->repeat_buff->len != 0){
+        I->repeat_buff->len = 0;
+    }
+    // Reset repeat commands
+    I->repeat = 1;
+}
+
 void editor_start_mode_insert(){
     editor_set_status("-- INSERT --");
     // If we have data in the repeat buffer, start from the index 0 again
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
     }
+    // Reset repeat commands
+    I->repeat = 1;
 }
 
 void editor_start_mode_cursor(){
@@ -266,6 +292,7 @@ void editor_set_mode(enum editor_mode mode){
     switch(I->mode){
         case MODE_NORMAL:   editor_start_mode_normal(); break;
         case MODE_INSERT:   editor_start_mode_insert(); break;
+        case MODE_REPLACE:  editor_start_mode_replace(); break;
         case MODE_CURSOR:   editor_start_mode_cursor(); break;
         case MODE_COMMAND:  break;
     }
@@ -274,7 +301,7 @@ void editor_set_mode(enum editor_mode mode){
 void editor_render_ruler(HEBuff* buff){
 
     // Move to (screen_cols-10,screen_rows);
-    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows, I->screen_cols-20);
+    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, I->screen_cols-20);
 
     unsigned int offset = editor_offset_at_cursor();
 
@@ -315,6 +342,11 @@ void editor_refresh_screen(){
     term_draw(buff);
 }
 
+void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
+
+    I->content[offset].c = new_byte;
+}
+
 void editor_prepare_write_repeat(char ch){
 
     if((I->repeat_buff->len+1 == I->repeat_buff->capacity)){
@@ -325,8 +357,7 @@ void editor_prepare_write_repeat(char ch){
     I->repeat_buff->len++;
 }
 
-
-void editor_write_cursor(char c){
+void editor_replace_cursor(char c){
 
     char new_byte = 0;
     char old_byte = 0;
@@ -340,104 +371,113 @@ void editor_write_cursor(char c){
     // Second octet
     if(I->last_write_offset == offset){
         // One octet already written in this position
-        old_byte = I->file_content[offset];
+        old_byte = I->content[offset].c;
 
         // Less significative first
         new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
         // Most significative first
         //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
 
-        // Create the action
-        action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
-        __debug__print_action_list(I->action_list);
-
-        I->file_content[offset] = new_byte;
+        editor_write_byte_offset(new_byte, offset);
 
         editor_move_cursor(KEY_RIGHT, 1);
 
         I->last_write_offset = -1;
     }else{
-        old_byte = I->file_content[offset];
+        old_byte = I->content[offset].o;
 
         // Less significative first
         new_byte = (old_byte & 0xf0) | utils_atoh(c) ;
         // Most significative first
         //new_byte = (old_byte & 0x0f) | (utils_atoh(c) << 4) ;
-        I->file_content[offset] = new_byte;
+
+        editor_write_byte_offset(new_byte, offset);
 
         I->last_byte = old_byte;
         I->last_write_offset = offset;
+
+        // Create the action
+        action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
     }
 
 }
 
-void editor_reset_write(){
-    I->last_write_offset = -1;
-    //I->repeat_buff->len = 0;
+void editor_insert_cursor(char c){
+    /*I->content = realloc(I->content, I->content_length + 1);*/
+    /*I->content = realloc(I->content, I->content_length + 1);*/
 }
 
-void editor_write_cursor_repeat(){
+void editor_reset_write_repeat(){
+    I->last_write_offset = -1;
+}
+
+void editor_replace_cursor_repeat(){
 
     for(int r=0; r < I->repeat; r++){
         for(int c=0; c < I->repeat_buff->len; c++){
-            editor_write_cursor(I->repeat_buff->content[c]);
+            editor_replace_cursor(I->repeat_buff->content[c]);
         }
     }
 }
 
-void editor_redo(){
+void editor_redo(int repeat){
 
     HEActionList *list = I->action_list;
 
-    // If newest change
-    if(list->current->next == NULL){
-        editor_set_status("Already at newest change");
-        return;
+    for(int i = 0; i<repeat; i++){
+
+        // If newest change
+        if(list->current->next == NULL){
+            editor_set_status("Already at newest change");
+            return;
+        }
+
+        // We start from action base. To redo the last change we have to go to the
+        // next action in the list
+        list->current = list->current->next;
+
+        unsigned int offset = list->current->offset;
+        unsigned char c = list->current->c;
+
+        // Store modified value in case of undo
+        list->current->c = I->content[offset].c;
+
+        I->content[offset].c = c;
+        editor_cursor_at_offset(offset);
     }
-
-    // We start from action base. To redo the last change we have to go to the
-    // next action in the list
-    list->current = list->current->next;
-
-    unsigned int offset = list->current->offset;
-    unsigned char c = list->current->c;
-
-    // Store modified value in case of undo
-    list->current->c = I->file_content[offset];
-
-    I->file_content[offset] = c;
-    editor_cursor_at_offset(offset);
 
 }
 
-void editor_undo(){
+void editor_undo(int repeat){
 
     HEActionList *list = I->action_list;
 
-    // If we hit the action base
-    if(list->current->type == ACTION_BASE){
-        editor_set_status("Already at oldest change");
-        return;
+    for(int i = 0; i<repeat; i++){
+        // If we hit the action base
+        if(list->current->type == ACTION_BASE){
+            editor_set_status("Already at oldest change");
+            return;
+        }
+
+        unsigned int offset = list->current->offset;
+        unsigned char c = list->current->c;
+
+        // Store modified value in case of redo
+        list->current->c = I->content[offset].c;
+
+        // Put back the old value
+        I->content[offset].c = c;
+        editor_cursor_at_offset(offset);
+
+        list->current = list->current->prev;
+
     }
-
-    unsigned int offset = list->current->offset;
-    unsigned char c = list->current->c;
-
-    // Store modified value in case of redo
-    list->current->c = I->file_content[offset];
-
-    // Put back the old value
-    I->file_content[offset] = c;
-    editor_cursor_at_offset(offset);
-
-    list->current = list->current->prev;
 
 }
 
 
 // Process the key pressed
 void editor_process_keypress(){
-
 
     char command[MAX_COMMAND];
     command[0] = '\0';
@@ -446,8 +486,6 @@ void editor_process_keypress(){
     int c = utils_read_key();
 
     if(I->mode == MODE_NORMAL){
-        // Reset repeat commands
-        I->repeat = 1;
         // TODO: Implement key repeat correctly
         if(c != '0'){
             unsigned int count = 0;
@@ -481,13 +519,14 @@ void editor_process_keypress(){
             case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
             case 'i': editor_set_mode(MODE_INSERT); break;
             case 'c': editor_set_mode(MODE_CURSOR); break;
+            case 'r': editor_set_mode(MODE_REPLACE); break;
 
-            // Repeat last write command
-            case '.': editor_write_cursor_repeat(); break;
+            // TODO: Repeat last write command
+            case '.': editor_replace_cursor_repeat(); break;
 
             // Undo/Redo
-            case 'u': editor_undo(); break;
-            case 'r': editor_redo(); break;
+            case 'u': editor_undo(I->repeat); break;
+            //case 'r': editor_redo(I->repeat); break;
 
             // EOF
             case 'G': editor_cursor_at_offset(I->content_length-1); break;
@@ -505,17 +544,31 @@ void editor_process_keypress(){
         }
     }
 
-    else if(I->mode == MODE_INSERT){
+    else if(I->mode == MODE_REPLACE){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC || c == 'q'){
             // Already one repeat write
             I->repeat--;
-            editor_write_cursor_repeat();
-            editor_reset_write();
+            editor_replace_cursor_repeat();
+            editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
         }else{
-            editor_write_cursor(c);
+            editor_replace_cursor(c);
             editor_prepare_write_repeat(c);
+        }
+    }
+    else if(I->mode == MODE_INSERT){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC || c == 'q'){
+            editor_set_mode(MODE_NORMAL);
+        }else{
+        }
+    }
+    else if(I->mode == MODE_CURSOR){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC || c == 'q'){
+            editor_set_mode(MODE_NORMAL);
+        }else{
         }
     }
 
@@ -577,9 +630,9 @@ void editor_exit(){
             // Free the screen buff
             buff_remove(I->buff);
         }
-        if (I->file_content != NULL){
+        if (I->content != NULL){
             // Free the read file content
-            free(I->file_content);
+            free(I->content);
         }
         if (I->file_name != NULL){
             // Free the filename

@@ -20,7 +20,6 @@ void __debug__print_action_list(HEActionList *list){
 
 void action_add(HEActionList *list, enum action_type type, unsigned int offset, unsigned char c){
 
-
     HEAction *action = malloc(sizeof(HEAction));
     action->type   = type;
     action->offset = offset;

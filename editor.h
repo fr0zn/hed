@@ -8,10 +8,15 @@
 enum editor_mode {
     MODE_NORMAL       = 0x001,
     MODE_COMMAND      = 0x002,
-    MODE_INSERT       = 0x003,
-    MODE_CURSOR       = 0x004,
+    MODE_REPLACE      = 0x003,
+    MODE_INSERT       = 0x004,
+    MODE_CURSOR       = 0x005,
 };
 
+typedef struct {
+    uint8_t o; // Original
+    uint8_t c; // Current
+} byte_t;
 
 // Struct to store the state of the editor, such as the position on the screen
 // the file content and length and the status message. It also holds the
@@ -43,8 +48,12 @@ typedef struct {
     unsigned char last_byte;
     unsigned int last_write_offset;
 
+    //uint8_t *bytes_changed; // Map keeping track of the bytes changed (1->changed, 0->original)
 
-    char *file_content;  // The content of the file we are working on
+    byte_t *content;
+
+    //char *original_content;  // The original content of the file we are working on
+    //char *file_content;  // The content of the file we are working on
     char *file_name; // The name of the file we are working on
     unsigned int content_length; // Stores the length of the file
 

@@ -488,10 +488,17 @@ void editor_redo_insert_offset(unsigned int offset, unsigned char c){
     I->content_length++;
 }
 
-void editor_delete_char_at_offset(unsigned int offset) {
+void editor_delete_offset(unsigned int offset) {
+    unsigned char old_byte = I->content[offset].c;
     memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
     I->content_length--;
+    action_add(I->action_list, ACTION_DELETE, offset, old_byte);
+}
+
+void editor_delete_cursor(){
+    unsigned int offset = editor_offset_at_cursor();
+    editor_delete_offset(offset);
 }
 
 void editor_reset_write_repeat(){
@@ -582,6 +589,10 @@ void editor_undo(int repeat){
             editor_undo_insert_offset(offset);
             editor_cursor_at_offset(offset);
             break;
+        case ACTION_DELETE:
+            editor_redo_insert_offset(offset, c);
+            editor_cursor_at_offset(offset);
+            break;
 
     }
 
@@ -634,6 +645,9 @@ void editor_process_keypress(){
             case 'i': editor_set_mode(MODE_INSERT); break;
             case 'c': editor_set_mode(MODE_CURSOR); break;
             case 'r': editor_set_mode(MODE_REPLACE); break;
+
+            // Remove
+            case 'x': editor_delete_cursor(); break;
 
             // TODO: Repeat last write command
             case '.': editor_repeat_last_action(); break;

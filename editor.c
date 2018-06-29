@@ -88,7 +88,9 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
     }
 
     if(I->in_ascii == true){
+        buff_append(buff, "\x1b[33m", 5);
         buff_append(buff, "|", 1);
+        buff_append(buff, "\x1b[0m", 4);
     }else{
         buff_append(buff, " ", 1);
     }
@@ -202,6 +204,8 @@ void editor_render_content(HEBuff* buff){
             row++;
             // Cursor side
             if(I->in_ascii == false){
+                // Color yellow
+                buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, "|", 1);
                 buff_append(buff, "\x1b[0m", 4);
             }else{
@@ -243,9 +247,13 @@ void editor_render_content(HEBuff* buff){
         if((offset + 1) % I->bytes_per_line == 0){
             // Cursor side
             if(I->in_ascii == false){
+                buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, "| ", 2);
+                buff_append(buff, "\x1b[0m", 4);
             }else{
+                buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, " |", 2);
+                buff_append(buff, "\x1b[0m", 4);
             }
             line_chars += 2;
             // End Cursor side
@@ -264,9 +272,13 @@ void editor_render_content(HEBuff* buff){
                 line_chars++;
         }
         if(I->in_ascii == false){
+            buff_append(buff, "\x1b[33m", 5);
             buff_append(buff, "| ", 2);
+            buff_append(buff, "\x1b[0m", 4);
         }else{
+            buff_append(buff, "\x1b[33m", 5);
             buff_append(buff, " |", 2);
+            buff_append(buff, "\x1b[0m", 4);
         }
         // Render ascii
         editor_render_ascii(row, line_offset_start, line_bytes);
@@ -409,10 +421,9 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
     }
 
     if(I->in_ascii){
-        I->last_byte = I->content[offset].c;
-        editor_write_byte_offset(c, offset);
         // Create the action
-        action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
+        action_add(I->action_list, ACTION_REPLACE, offset, I->content[offset].c, c);
+        editor_write_byte_offset(c, offset);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
@@ -426,6 +437,9 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
         // Most significative first
         //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+
+        // Modify the last action to reflect the 2nd nibble
+        I->action_list->last->b.c = new_byte;
 
         editor_write_byte_offset(new_byte, offset);
 
@@ -443,11 +457,10 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
 
         editor_write_byte_offset(new_byte, offset);
 
-        I->last_byte = old_byte;
         I->last_write_offset = offset;
 
         // Create the action
-        action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
+        action_add(I->action_list, ACTION_REPLACE, offset, old_byte, I->content[offset].c);
     }
 
 }
@@ -470,13 +483,15 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
     if(I->in_ascii){
         I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
-        // Move data from the current offset to offset + 1
         memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+        I->content_length++;
 
+        // Make sure to set the original to 0 on insert
+        I->content[offset].o = 0;
         editor_write_byte_offset(c, offset);
 
         // Create the action
-        action_add(I->action_list, ACTION_INSERT, offset, c);
+        action_add(I->action_list, ACTION_INSERT, offset, 0, c);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
@@ -494,8 +509,8 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
         editor_write_byte_offset(new_byte, offset);
 
-        // Modify the last action, since its the insert on this offset
-        I->action_list->last->c = new_byte;
+        // Modify the last action to reflect the 2nd nibble
+        I->action_list->last->b.c = new_byte;
 
         editor_move_cursor(KEY_RIGHT, 1);
 
@@ -506,18 +521,20 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         // Increase allocation by one byte_t
         // TODO: only if not space already
         I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
-
-        // Move data from the current offset to offset + 1
         memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+        I->content_length++;
 
         new_byte = utils_atoh(c) & 0xf;
+
+        // Make sure to set the original to 0 on insert
+        I->content[offset].o = 0;
         editor_write_byte_offset(new_byte, offset);
+
         I->last_write_offset = offset;
 
         // Create the action
-        action_add(I->action_list, ACTION_INSERT, offset, new_byte);
+        action_add(I->action_list, ACTION_INSERT, offset, 0, new_byte);
 
-        I->content_length++;
 
     }
 
@@ -545,19 +562,21 @@ void editor_undo_insert_offset(unsigned int offset){
     I->content_length--;
 }
 
-void editor_redo_insert_offset(unsigned int offset, unsigned char c){
+void editor_redo_insert_offset(unsigned int offset, byte_t b){
     I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
     memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
-    I->content[offset].c = c;
+    I->content[offset].c = b.o;
+    //I->content[offset].o = b.o;
     I->content_length++;
 }
 
 void editor_delete_offset(unsigned int offset) {
     unsigned char old_byte = I->content[offset].c;
+    unsigned char original_byte = I->content[offset].o;
     memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
     I->content_length--;
-    action_add(I->action_list, ACTION_DELETE, offset, old_byte);
+    action_add(I->action_list, ACTION_DELETE, offset, original_byte, old_byte);
 }
 
 void editor_delete_cursor(){
@@ -569,10 +588,13 @@ void editor_reset_write_repeat(){
     I->last_write_offset = -1;
 }
 
-void editor_undo_redo_replace_offset(unsigned int offset, unsigned char c){
+void editor_undo_redo_replace_offset(unsigned int offset, byte_t b){
     HEActionList *list = I->action_list;
-    list->current->c = I->content[offset].c;
-    I->content[offset].c = c;
+    // Swap original and current in action
+    list->current->b.o = I->content[offset].c;
+    list->current->b.c = I->content[offset].o;
+
+    I->content[offset].c = b.o;
 
 }
 
@@ -615,7 +637,7 @@ void editor_redo(int repeat){
     list->current = list->current->next;
 
     unsigned int offset = list->current->offset;
-    unsigned char c = list->current->c;
+    byte_t b = list->current->b;
 
     switch(list->current->type){
         case ACTION_BASE:
@@ -623,11 +645,11 @@ void editor_redo(int repeat){
             return;
         case ACTION_REPLACE:
             // Store modified value in case of undo
-            editor_undo_redo_replace_offset(offset, c);
+            editor_undo_redo_replace_offset(offset, b);
             editor_cursor_at_offset(offset);
             break;
         case ACTION_INSERT:
-            editor_redo_insert_offset(offset, c);
+            editor_redo_insert_offset(offset, b);
             editor_cursor_at_offset(offset);
             break;
         case ACTION_APPEND: break;
@@ -641,7 +663,7 @@ void editor_undo(int repeat){
     HEActionList *list = I->action_list;
 
     unsigned int offset = list->current->offset;
-    unsigned char c = list->current->c;
+    byte_t b = list->current->b;
 
     switch(list->current->type){
         case ACTION_BASE:
@@ -649,7 +671,7 @@ void editor_undo(int repeat){
             return;
         case ACTION_REPLACE:
             // Store modified value in case of redo
-            editor_undo_redo_replace_offset(offset, c);
+            editor_undo_redo_replace_offset(offset, b);
             editor_cursor_at_offset(offset);
             break;
         case ACTION_INSERT:
@@ -657,7 +679,7 @@ void editor_undo(int repeat){
             editor_cursor_at_offset(offset);
             break;
         case ACTION_DELETE:
-            editor_redo_insert_offset(offset, c);
+            editor_redo_insert_offset(offset, b);
             editor_cursor_at_offset(offset);
             break;
         case ACTION_APPEND: break;
@@ -807,7 +829,7 @@ void editor_init(char *filename){
     I->status_message = malloc(MAX_STATUS_BAR);
 
     // Write
-    I->last_byte = 0;
+    I->last_byte = (byte_t){0,0};
     I->last_write_offset = -1;
     I->repeat_buff = malloc(sizeof(HEBuff));
     I->repeat_buff->content = malloc(128);

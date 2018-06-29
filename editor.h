@@ -2,6 +2,7 @@
 #define HE_EDITOR_H
 
 #include "buff.h"
+#include "utils.h"
 #include "action.h"
 #include <termios.h>
 #include <stdbool.h>
@@ -14,10 +15,6 @@ enum editor_mode {
     MODE_CURSOR       = 0x005,
 };
 
-typedef struct {
-    uint8_t o; // Original
-    uint8_t c; // Current
-} byte_t;
 
 // Struct to store the state of the editor, such as the position on the screen
 // the file content and length and the status message. It also holds the
@@ -48,7 +45,7 @@ typedef struct {
     unsigned int repeat;
 
     // Write
-    unsigned char last_byte;
+    byte_t last_byte;
     unsigned int last_write_offset;
 
     //uint8_t *bytes_changed; // Map keeping track of the bytes changed (1->changed, 0->original)

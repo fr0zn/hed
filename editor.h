@@ -4,6 +4,7 @@
 #include "buff.h"
 #include "action.h"
 #include <termios.h>
+#include <stdbool.h>
 
 enum editor_mode {
     MODE_NORMAL       = 0x001,
@@ -39,6 +40,8 @@ typedef struct {
     unsigned int groups_per_line;
 
     HEActionList *action_list;
+
+    bool in_ascii;
 
     // Stores the next command repetitions (from normal mode)
     HEBuff *repeat_buff;

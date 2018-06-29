@@ -80,6 +80,18 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
 
         buff_append(buff, "\x1b[0m", 4);
     }
+
+    // Fill the ascii
+    while(len < I->bytes_per_line){
+        buff_append(buff, " ", 1);
+        len++;
+    }
+
+    if(I->in_ascii == true){
+        buff_append(buff, "|", 1);
+    }else{
+        buff_append(buff, " ", 1);
+    }
 }
 
 void editor_calculate_bytes_per_line(){
@@ -185,12 +197,19 @@ void editor_render_content(HEBuff* buff){
             line_chars = 0;
             line_bytes = 0;
             line_offset_start = offset;
-            buff_vappendf(buff, "\x1b[34m%08x: ", offset);
+            buff_vappendf(buff, "\x1b[34m%08x: \x1b[0m", offset);
             line_chars += 10;
             row++;
+            // Cursor side
+            if(I->in_ascii == false){
+                buff_append(buff, "|", 1);
+                buff_append(buff, "\x1b[0m", 4);
+            }else{
+                buff_append(buff, " ", 1);
+            }
+            line_chars += 1;
+            // End Cursor side
         }
-
-        buff_append(buff, "\x1b[0m", 4);
 
         // Cursor
         if(I->cursor_y == row){
@@ -206,13 +225,15 @@ void editor_render_content(HEBuff* buff){
         }else{
             buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c & 0xff);
         }
-        // Reset color
-        buff_append(buff, "\x1b[0m", 4);
+
         line_chars += 2;
         line_bytes += 1;
+        // Reset color
+        buff_append(buff, "\x1b[0m", 4);
 
-        // Every group, write a separator of len PADDING
-        if(offset % I->bytes_group){
+        // Every group, write a separator of len PADDING, unless its the
+        // last in line or the last row
+        if((offset % I->bytes_group) && (line_bytes != I->bytes_per_line)){
             for(int s=0; s < PADDING; s++){
                 buff_append(buff, " ", 1);
                 line_chars += 1;
@@ -220,6 +241,15 @@ void editor_render_content(HEBuff* buff){
         }
         // If end of line, write ascii and new line
         if((offset + 1) % I->bytes_per_line == 0){
+            // Cursor side
+            if(I->in_ascii == false){
+                buff_append(buff, "| ", 2);
+            }else{
+                buff_append(buff, " |", 2);
+            }
+            line_chars += 2;
+            // End Cursor side
+            buff_append(buff, "\x1b[0m", 4);
             editor_render_ascii(row, line_offset_start, I->bytes_per_line);
             line_chars += I->bytes_per_line; // ascii chars
             buff_append(buff, "\r\n", 2);
@@ -232,6 +262,11 @@ void editor_render_content(HEBuff* buff){
         while( line_chars < chars_until_ascii){
                 buff_append(buff, " ", 1);
                 line_chars++;
+        }
+        if(I->in_ascii == false){
+            buff_append(buff, "| ", 2);
+        }else{
+            buff_append(buff, " |", 2);
         }
         // Render ascii
         editor_render_ascii(row, line_offset_start, line_bytes);
@@ -347,6 +382,13 @@ void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
     I->content[offset].c = new_byte;
 }
 
+void editor_write_cursor(unsigned char new_byte){
+
+    unsigned int offset = editor_offset_at_cursor();
+    editor_write_byte_offset(new_byte, offset);
+    editor_move_cursor(KEY_RIGHT, 1);
+}
+
 void editor_prepare_write_repeat(char ch){
 
     if((I->repeat_buff->len+1 >= I->repeat_buff->capacity)){
@@ -363,6 +405,15 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
     char old_byte = 0;
 
     if(offset >= I->content_length){
+        return;
+    }
+
+    if(I->in_ascii){
+        I->last_byte = I->content[offset].c;
+        editor_write_byte_offset(c, offset);
+        // Create the action
+        action_add(I->action_list, ACTION_REPLACE, offset, I->last_byte);
+        editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
 
@@ -414,6 +465,19 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
     char old_byte = 0;
 
     if(offset >= I->content_length){
+        return;
+    }
+
+    if(I->in_ascii){
+        I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
+        // Move data from the current offset to offset + 1
+        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+
+        editor_write_byte_offset(c, offset);
+
+        // Create the action
+        action_add(I->action_list, ACTION_INSERT, offset, c);
+        editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
 
@@ -529,6 +593,8 @@ void editor_repeat_last_action(){
         case ACTION_BASE: break;
         case ACTION_REPLACE: editor_replace_cursor_repeat(); break;
         case ACTION_INSERT: editor_insert_cursor_repeat(); break;
+        case ACTION_APPEND: break;
+        case ACTION_DELETE: break;
 
     }
 
@@ -564,7 +630,8 @@ void editor_redo(int repeat){
             editor_redo_insert_offset(offset, c);
             editor_cursor_at_offset(offset);
             break;
-
+        case ACTION_APPEND: break;
+        case ACTION_DELETE: break;
     }
 
 }
@@ -593,6 +660,7 @@ void editor_undo(int repeat){
             editor_redo_insert_offset(offset, c);
             editor_cursor_at_offset(offset);
             break;
+        case ACTION_APPEND: break;
 
     }
 
@@ -600,6 +668,9 @@ void editor_undo(int repeat){
 
 }
 
+void editor_toggle_cursor(){
+    I->in_ascii = (I->in_ascii == true) ? false: true;
+}
 
 // Process the key pressed
 void editor_process_keypress(){
@@ -631,6 +702,8 @@ void editor_process_keypress(){
 
         switch (c){
             case 'q': exit(0); break;
+
+            case KEY_TAB: editor_toggle_cursor(); break;
 
             case 'h': editor_move_cursor(KEY_LEFT, I->repeat); break;
             case 'j': editor_move_cursor(KEY_DOWN, I->repeat); break;
@@ -674,7 +747,7 @@ void editor_process_keypress(){
 
     else if(I->mode == MODE_REPLACE){
         // Finish repeat sequence and go to normal mode
-        if(c == KEY_ESC || c == 'q'){
+        if(c == KEY_ESC){
             // Already one repeat write
             I->repeat--;
             editor_replace_cursor_repeat();
@@ -687,7 +760,7 @@ void editor_process_keypress(){
     }
     else if(I->mode == MODE_INSERT){
         // Finish repeat sequence and go to normal mode
-        if(c == KEY_ESC || c == 'q'){
+        if(c == KEY_ESC){
             // Already one repeat write
             I->repeat--;
             editor_insert_cursor_repeat();
@@ -700,7 +773,7 @@ void editor_process_keypress(){
     }
     else if(I->mode == MODE_CURSOR){
         // Finish repeat sequence and go to normal mode
-        if(c == KEY_ESC || c == 'q'){
+        if(c == KEY_ESC){
             editor_set_mode(MODE_NORMAL);
         }else{
         }
@@ -742,6 +815,7 @@ void editor_init(char *filename){
     I->repeat = 1;
 
     I->action_list = action_list_init();
+    I->in_ascii = false;
 
     I->cursor_y = 1;
     I->cursor_x = 0;

@@ -27,6 +27,9 @@ void buff_delete_last(HEBuff* buff);
 // Clear the buffer
 void buff_clear(HEBuff* buff);
 
+// Clear the buffer only setting len
+void buff_clear_dirty(HEBuff* buff);
+
 // Add `to_append` to the buffer
 void buff_append(HEBuff* buff, const char* to_append, size_t len);
 

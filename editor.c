@@ -282,7 +282,7 @@ void editor_render_content(HEBuff* buff){
     int offset_start = I->scrolled * I->bytes_per_line;
 
     if(offset_start >= I->content_length){
-        offset_start = I->content_length - I->bytes_per_line;
+        offset_start = I->content_length;
     }
 
     int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2); // ruler + status
@@ -293,6 +293,12 @@ void editor_render_content(HEBuff* buff){
         offset_end = I->content_length;
     }
 
+    // Empty file
+    if(offset_end == 0){
+        offset_end ++;
+    }
+
+    fprintf(stderr, "(%d, %d)", offset_start, offset_end);
 
     for (offset = offset_start; offset < offset_end; offset++){
         // New row
@@ -332,12 +338,16 @@ void editor_render_content(HEBuff* buff){
             }
         }
 
-        // Write the value on the screen (HEBuff)
-        // If the value is changed
-        if(I->content[offset].c != I->content[offset].o){
-            buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c & 0xff);
+        if(offset == offset_end && offset_end == 1){
+            buff_vappendf(buff, "%02x", 0);
         }else{
-            buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c & 0xff);
+            // Write the value on the screen (HEBuff)
+            // If the value is changed
+            if(I->content[offset].c != I->content[offset].o){
+                buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c & 0xff);
+            }else{
+                buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c & 0xff);
+            }
         }
 
         line_chars += 2;
@@ -474,10 +484,15 @@ void editor_render_ruler(HEBuff* buff){
     buff_vappendf(buff, "[%s]", I->file_name);
 
     unsigned int offset = editor_offset_at_cursor();
+    unsigned int percentage = 100;
 
     // Right ruler
     buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, I->screen_cols - 25);
-    buff_vappendf(buff, "0x%08x (%d)  %d%%", offset, offset, (offset*100/I->content_length));
+
+    if(I->content_length > 1){
+        percentage = offset*100/(I->content_length-1);
+    }
+    buff_vappendf(buff, "0x%08x (%d)  %d%%", offset, offset, percentage);
 }
 
 void editor_render_status(HEBuff* buff){
@@ -696,17 +711,22 @@ void editor_redo_insert_offset(unsigned int offset, byte_t b){
 }
 
 void editor_delete_offset(unsigned int offset) {
-    unsigned char old_byte = I->content[offset].c;
-    unsigned char original_byte = I->content[offset].o;
-    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
-    I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
-    I->content_length--;
-    action_add(I->action_list, ACTION_DELETE, offset, original_byte, old_byte);
+    if(I->content_length > 0){
+        unsigned char old_byte = I->content[offset].c;
+        unsigned char original_byte = I->content[offset].o;
+        memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
+        I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+        I->content_length--;
+        action_add(I->action_list, ACTION_DELETE, offset, original_byte, old_byte);
+    }
 }
 
 void editor_delete_cursor(){
     unsigned int offset = editor_offset_at_cursor();
     editor_delete_offset(offset);
+    if(offset > 0 && offset == I->content_length){
+        editor_move_cursor(KEY_LEFT, 1);
+    }
 }
 
 void editor_reset_write_repeat(){

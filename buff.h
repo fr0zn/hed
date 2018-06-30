@@ -21,6 +21,9 @@ HEBuff* buff_create();
 // Deallocates the memory including the object itself
 void buff_remove(HEBuff* buff);
 
+// Deletes the last character
+void buff_delete_last(HEBuff* buff);
+
 // Clear the buffer
 void buff_clear(HEBuff* buff);
 

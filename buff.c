@@ -31,9 +31,23 @@ void buff_remove(HEBuff* buff){
 
 // Sets the length to 0 in order to start appending data from the beggining of
 // the buffer again. The capacity will stay the same and the buffer content
-// pointer will be the same also.
+// pointer will be the same also. The old data is set to 0
 void buff_clear(HEBuff* buff){
+    memset(buff->content, 0, buff->len);
     buff->len = 0;
+}
+
+// Sets the length to 0 in order to start appending data from the beggining of
+// the buffer again. The data is not cleared
+void buff_clear_dirty(HEBuff* buff){
+    buff->len = 0;
+}
+
+void buff_delete_last(HEBuff* buff){
+    if(buff->len > 0 ){
+        buff->content[buff->len] = 0;
+        buff->len--;
+    }
 }
 
 // Appends `to_append` to the HEBuff content and reallocates in case is needed

@@ -411,8 +411,13 @@ void editor_render_content(HEBuff* buff){
         editor_render_ascii(row, line_offset_start, line_bytes);
     }
 
-    // clear everything up until the end of the screen
-    buff_append(buff, "\x1b[J", 3);
+
+    while(++row < I->screen_rows){
+        // clear everything up until the end
+        buff_vappendf(buff, "\x1b[%d;H", row);
+        buff_append(buff, "\x1b[2K", 4);
+    }
+
 
 }
 

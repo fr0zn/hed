@@ -19,6 +19,26 @@ static HEState *hestate = NULL;
 #define MAX_COMMAND 32
 #define MAX_STATUS_BAR 128
 
+void editor_set_status(enum status_message type, const char *fmt, ...){
+
+    buff_clear(I->status_message);
+
+    switch(type){
+        case STATUS_INFO: buff_append(I->status_message, "\x1b[34m", 5); break;
+        case STATUS_WARNING: buff_append(I->status_message, "\x1b[33m", 5); break;
+        case STATUS_ERROR: buff_append(I->status_message, "\x1b[31m", 5); break;
+        case STATUS_MODE: buff_append(I->status_message, "\x1b[32m", 5); break;
+    }
+
+    va_list ap;
+    va_start(ap, fmt);
+    buff_vappendf(I->status_message, fmt, ap);
+    va_end(ap);
+
+    buff_append(I->status_message, "\x1b[0m", 4);
+
+}
+
 // Opens the file and stores the content
 void editor_open_file(char *filename){
     FILE *fp = fopen(filename, "rb");
@@ -48,8 +68,25 @@ void editor_open_file(char *filename){
     }
 
     fclose(fp);
-
 }
+
+// Opens the file and stores the content
+void editor_write_file(){
+    FILE *fp = fopen(I->file_name, "wb");
+    if (fp == NULL){
+
+    }
+    int i;
+
+    for(i = 0; i < I->content_length; i++){
+        fwrite(&I->content[i].c, 1, 1, fp);
+    }
+
+    editor_set_status(STATUS_INFO, "written %d bytes", i);
+
+    fclose(fp);
+}
+
 
 
 void editor_render_ascii(int row, unsigned int start, unsigned int len){
@@ -434,26 +471,18 @@ void editor_render_command(char *command){
     term_print(buffer, w);
 }
 
-void editor_set_status(const char *fmt, ...){
-
-    va_list ap;
-    va_start(ap, fmt);
-    int x = vsnprintf(I->status_message, MAX_STATUS_BAR, fmt, ap);
-    va_end(ap);
-
-}
 
 // Modes
 
 void editor_start_mode_normal(){
-    editor_set_status("");
+    editor_set_status(STATUS_INFO, "");
     // Reset selection
     I->selection.start = -1;
     I->selection.end = -1;
 }
 
 void editor_start_mode_replace(){
-    editor_set_status("-- REPLACE --");
+    editor_set_status(STATUS_MODE, "-- REPLACE --");
     // If we have data in the repeat buffer, start from the index 0 again
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
@@ -461,7 +490,7 @@ void editor_start_mode_replace(){
 }
 
 void editor_start_mode_insert(){
-    editor_set_status("-- INSERT --");
+    editor_set_status(STATUS_MODE, "-- INSERT --");
     // If we have data in the repeat buffer, start from the index 0 again
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
@@ -470,13 +499,13 @@ void editor_start_mode_insert(){
 
 void editor_start_mode_visual(){
     unsigned int offset = editor_offset_at_cursor();
-    editor_set_status("-- VISUAL --");
+    editor_set_status(STATUS_MODE, "-- VISUAL --");
     I->selection.start = offset;
     I->selection.end   = offset;
 }
 
 void editor_start_mode_cursor(){
-    editor_set_status("-- CURSOR --");
+    editor_set_status(STATUS_MODE, "-- CURSOR --");
 }
 
 void editor_set_mode(enum editor_mode mode){
@@ -516,13 +545,13 @@ void editor_render_status(HEBuff* buff){
     // Move to (0,screen_rows);
     buff_vappendf(buff, "\x1b[%d;0H", I->screen_rows);
 
-    int len = strlen(I->status_message);
+    int len = I->status_message->len;
     if (I->screen_cols <= len) {
         len = I->screen_cols;
-        buff_append(buff, I->status_message, len-3);
+        buff_append(buff, I->status_message->content, len-3);
         buff_append(buff, "...", 3);
     }
-    buff_append(buff, I->status_message, len);
+    buff_append(buff, I->status_message->content, len);
     buff_append(buff, "\x1b[0K", 4);
 }
 
@@ -852,7 +881,7 @@ void editor_redo(){
     for(int i = 0; i< I->repeat; i++){
         // If newest change
         if(list->current->next == NULL){
-            editor_set_status("Already at newest change");
+            editor_set_status(STATUS_INFO, "Already at newest change");
             return;
         }
 
@@ -865,7 +894,7 @@ void editor_redo(){
 
         switch(list->current->type){
             case ACTION_BASE:
-                editor_set_status("Already at newest change");
+                editor_set_status(STATUS_INFO, "Already at newest change");
                 return;
             case ACTION_REPLACE:
                 // Store modified value in case of undo
@@ -896,7 +925,7 @@ void editor_undo(){
 
         switch(list->current->type){
             case ACTION_BASE:
-                editor_set_status("Already at oldest change");
+                editor_set_status(STATUS_INFO, "Already at oldest change");
                 return;
             case ACTION_REPLACE:
                 // Store modified value in case of redo
@@ -964,6 +993,8 @@ void editor_process_keypress(){
 
             case 'w': editor_move_cursor(KEY_RIGHT, I->repeat*I->bytes_group); break;
             case 'b': editor_move_cursor(KEY_LEFT, I->repeat*I->bytes_group); break;
+
+            case 's': editor_write_file(); break;
 
             // Modes
             case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
@@ -1103,7 +1134,7 @@ void editor_init(char *filename){
 
     // status bar & mode
     I->mode = MODE_NORMAL;
-    I->status_message = malloc(MAX_STATUS_BAR);
+    I->status_message = buff_create();
 
     // Write
     I->last_byte = (byte_t){0,0};

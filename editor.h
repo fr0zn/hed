@@ -16,6 +16,13 @@ enum editor_mode {
     MODE_VISUAL       = 0x006,
 };
 
+enum status_message {
+    STATUS_INFO       = 0x001,
+    STATUS_WARNING    = 0x002,
+    STATUS_ERROR      = 0x003,
+    STATUS_MODE       = 0x004,
+};
+
 typedef struct {
     int start;
     int end;
@@ -37,7 +44,7 @@ typedef struct {
     HEBuff *buff; // Store the screen content
 
     enum editor_mode mode; // Mode the editor is in
-    char* status_message; // Pointer to the message in the status bar
+    HEBuff* status_message; // Message in the status bar
 
     unsigned int bytes_per_line;
     unsigned int bytes_group;

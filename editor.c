@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdarg.h>
+#include <errno.h>
 
 static HEState *hestate = NULL;
 // Instance as I
@@ -93,7 +94,8 @@ void editor_open_file(char *filename){
 void editor_write_file(){
     FILE *fp = fopen(I->file_name, "wb");
     if (fp == NULL){
-
+        editor_set_status(STATUS_ERROR, "Unable to open '%s' for writing: %s", I->file_name, strerror(errno));
+        return;
     }
     int i;
 
@@ -102,6 +104,7 @@ void editor_write_file(){
     }
 
     editor_set_status(STATUS_INFO, "written %d bytes", i);
+    I->dirty = false;
 
     fclose(fp);
 }

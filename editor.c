@@ -720,7 +720,6 @@ void editor_delete_offset(unsigned int offset) {
         I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
         I->content_length--;
         action_add(I->action_list, ACTION_DELETE, offset, original_byte, old_byte);
-        editor_cursor_offset(offset);
     }
 }
 
@@ -729,6 +728,8 @@ void editor_delete_cursor(){
     editor_delete_offset(offset);
     if(offset > 0 && offset == I->content_length){
         editor_move_cursor(KEY_LEFT, 1);
+    }else{
+        editor_cursor_offset(offset);
     }
 }
 
@@ -736,6 +737,14 @@ void editor_delete_cursor_repeat(){
     for(int r=0; r < I->repeat; r++){
         editor_delete_cursor();
     }
+}
+
+void editor_delete_visual(){
+    for(int i= I->selection.start; i <= I->selection.end; i++){
+        editor_delete_offset(I->selection.start);
+    }
+    editor_cursor_offset(I->selection.start);
+    editor_set_mode(MODE_NORMAL);
 }
 
 
@@ -818,73 +827,79 @@ void editor_repeat_last_action(){
 
 }
 
-void editor_redo(int repeat){
+void editor_redo(){
 
     HEActionList *list = I->action_list;
 
-    // If newest change
-    if(list->current->next == NULL){
-        editor_set_status("Already at newest change");
-        return;
-    }
-
-    // We start from action base. To redo the last change we have to go to the
-    // next action in the list
-    list->current = list->current->next;
-
-    unsigned int offset = list->current->offset;
-    byte_t b = list->current->b;
-
-    switch(list->current->type){
-        case ACTION_BASE:
+    for(int i = 0; i< I->repeat; i++){
+        // If newest change
+        if(list->current->next == NULL){
             editor_set_status("Already at newest change");
             return;
-        case ACTION_REPLACE:
-            // Store modified value in case of undo
-            editor_undo_redo_replace_offset(offset, b);
-            editor_cursor_offset_scroll(offset);
-            break;
-        case ACTION_INSERT:
-            editor_redo_insert_offset(offset, b);
-            editor_cursor_offset_scroll(offset);
-            break;
-        case ACTION_DELETE:
-            editor_redo_delete_offset(offset, b); break;
-        case ACTION_APPEND: break;
+        }
+
+        // We start from action base. To redo the last change we have to go to the
+        // next action in the list
+        list->current = list->current->next;
+
+        unsigned int offset = list->current->offset;
+        byte_t b = list->current->b;
+
+        switch(list->current->type){
+            case ACTION_BASE:
+                editor_set_status("Already at newest change");
+                return;
+            case ACTION_REPLACE:
+                // Store modified value in case of undo
+                editor_undo_redo_replace_offset(offset, b);
+                editor_cursor_offset_scroll(offset);
+                break;
+            case ACTION_INSERT:
+                editor_redo_insert_offset(offset, b);
+                editor_cursor_offset_scroll(offset);
+                break;
+            case ACTION_DELETE:
+                editor_redo_delete_offset(offset, b); break;
+            case ACTION_APPEND: break;
+        }
     }
+
 
 }
 
-void editor_undo(int repeat){
+void editor_undo(){
 
     HEActionList *list = I->action_list;
 
-    unsigned int offset = list->current->offset;
-    byte_t b = list->current->b;
+    for(int i = 0; i< I->repeat; i++){
 
-    switch(list->current->type){
-        case ACTION_BASE:
-            editor_set_status("Already at oldest change");
-            return;
-        case ACTION_REPLACE:
-            // Store modified value in case of redo
-            editor_undo_redo_replace_offset(offset, b);
-            editor_cursor_offset_scroll(offset);
-            break;
-        case ACTION_INSERT:
-            editor_undo_insert_offset(offset);
-            editor_cursor_offset_scroll(offset);
-            break;
-        case ACTION_DELETE:
-            editor_undo_delete_offset(offset, b);
-            editor_cursor_offset_scroll(offset);
-            break;
-        case ACTION_APPEND: break;
+        unsigned int offset = list->current->offset;
+        byte_t b = list->current->b;
+
+        switch(list->current->type){
+            case ACTION_BASE:
+                editor_set_status("Already at oldest change");
+                return;
+            case ACTION_REPLACE:
+                // Store modified value in case of redo
+                editor_undo_redo_replace_offset(offset, b);
+                editor_cursor_offset_scroll(offset);
+                break;
+            case ACTION_INSERT:
+                editor_undo_insert_offset(offset);
+                editor_cursor_offset_scroll(offset);
+                break;
+            case ACTION_DELETE:
+                editor_undo_delete_offset(offset, b);
+                editor_cursor_offset_scroll(offset);
+                break;
+            case ACTION_APPEND: break;
+
+        }
+
+        list->current = list->current->prev;
 
     }
-
-    list->current = list->current->prev;
-
 }
 
 void editor_toggle_cursor(){
@@ -946,8 +961,8 @@ void editor_process_keypress(){
             case '.': editor_repeat_last_action(); break;
 
             // Undo/Redo
-            case 'u': editor_undo(I->repeat); break;
-            case  KEY_CTRL_R: editor_redo(I->repeat); break;
+            case 'u': editor_undo(); break;
+            case  KEY_CTRL_R: editor_redo(); break;
 
             // EOF
             case 'G':
@@ -1015,7 +1030,9 @@ void editor_process_keypress(){
                 case 'k': editor_move_cursor_visual(KEY_UP, I->repeat); break;
                 case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
 
+
                 case 'r': editor_replace_visual(); break;
+                case 'x': editor_delete_visual(); break;
             }
         }
     }

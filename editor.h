@@ -67,8 +67,13 @@ typedef struct {
     unsigned int last_write_offset;
 
     byte_t *content;
+    bool read_only;
+
+    bool dirty; // If changes made
 
     char *file_name; // The name of the file we are working on
+
+
     unsigned int content_length; // Stores the length of the file
 
     struct termios term_original; // Stores the non raw terminal info

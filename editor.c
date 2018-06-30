@@ -21,6 +21,8 @@ static HEState *hestate = NULL;
 
 void editor_set_status(enum status_message type, const char *fmt, ...){
 
+    char buff[MAX_STATUS_BAR];
+
     buff_clear(I->status_message);
 
     switch(type){
@@ -32,8 +34,10 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
 
     va_list ap;
     va_start(ap, fmt);
-    buff_vappendf(I->status_message, fmt, ap);
+    int x = vsnprintf(buff, MAX_STATUS_BAR, fmt, ap);
     va_end(ap);
+
+    buff_append(I->status_message, buff, x);
 
     buff_append(I->status_message, "\x1b[0m", 4);
 
@@ -52,19 +56,34 @@ void editor_open_file(char *filename){
         exit(1);
     }
 
+    if (!S_ISREG(statbuf.st_mode)) {
+        fprintf(stderr, "File '%s' is not a regular file\n", filename);
+            exit(1);
+
+    }
+
     // Top byte (original)
     I->content = malloc(statbuf.st_size*sizeof(byte_t));
 
     I->file_name = malloc(strlen(filename));
-    I->content_length = statbuf.st_size;
-
     strcpy(I->file_name, filename);
+
+    I->content_length = statbuf.st_size;
 
     uint8_t c; // Single c read
     for(int i = 0; i < statbuf.st_size; i++){
         fread(&c, 1, 1, fp);
         I->content[i].o = c;
         I->content[i].c = c;
+    }
+
+    // Check if the file is readonly, and warn the user about that.
+    if (access(filename, W_OK) == -1) {
+        editor_set_status(STATUS_WARNING, "\"%s\" (%d bytes) [readonly]", I->file_name, I->content_length);
+        I->read_only = true;
+    } else {
+        editor_set_status(STATUS_INFO, "\"%s\" (%d bytes)", I->file_name, I->content_length);
+        I->read_only = false;
     }
 
     fclose(fp);
@@ -523,9 +542,17 @@ void editor_set_mode(enum editor_mode mode){
 void editor_render_ruler(HEBuff* buff){
 
     // Left ruler
-    // Move to (screen_cols-10,screen_rows);
+    // Move to position and clear line
     buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, 0);
-    buff_vappendf(buff, "[%s]", I->file_name);
+    buff_append(buff, "\x1b[2K", 4);
+
+    buff_vappendf(buff, "%s  ", I->file_name);
+    if(I->dirty){
+        buff_append(buff, "[+]", 3);
+    }
+    if(I->read_only){
+        buff_append(buff, "[RO]", 4);
+    }
 
     unsigned int offset = editor_offset_at_cursor();
     unsigned int percentage = 100;
@@ -605,6 +632,8 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         return;
     }
 
+    I->dirty = true;
+
     if(I->in_ascii){
         // Create the action
         action_add(I->action_list, ACTION_REPLACE, offset, I->content[offset].c, c);
@@ -665,6 +694,8 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
     if(offset >= I->content_length){
         return;
     }
+
+    I->dirty = true;
 
     if(I->in_ascii){
         I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
@@ -926,6 +957,7 @@ void editor_undo(){
         switch(list->current->type){
             case ACTION_BASE:
                 editor_set_status(STATUS_INFO, "Already at oldest change");
+                I->dirty = false;
                 return;
             case ACTION_REPLACE:
                 // Store modified value in case of redo
@@ -1153,6 +1185,9 @@ void editor_init(char *filename){
 
     I->cursor_y = 1;
     I->cursor_x = 0;
+
+    I->dirty = false;
+    I->read_only = false;
 
     editor_open_file(filename);
 

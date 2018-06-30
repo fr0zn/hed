@@ -1027,12 +1027,23 @@ void editor_process_command(){
     }
 
     switch(content[0]){
+        case 'w':
+            if(len == 1){
+                editor_write_file();
+            }else if(len == 2 && content[1] == 'q'){
+                editor_process_quit(false);
+            }else if(len == 3 && content[1] == 'q' && content[2] == '!'){
+                editor_process_quit(true);
+            }
+            break;
         case 'q':
             if(len == 1){
                 editor_process_quit(false);
             }else if(len == 2 && content[1] == '!'){
                 editor_process_quit(true);
             }
+            break;
+
         default:
             editor_set_status(STATUS_ERROR, "Not an editor command: %s", content);
     }
@@ -1232,6 +1243,7 @@ void editor_resize(){
     // New bytes per line
     editor_calculate_bytes_per_line();
     // Redraw the screen
+    term_clear();
     editor_refresh_screen();
 }
 

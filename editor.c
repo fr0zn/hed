@@ -298,8 +298,6 @@ void editor_render_content(HEBuff* buff){
         offset_end ++;
     }
 
-    fprintf(stderr, "(%d, %d)", offset_start, offset_end);
-
     for (offset = offset_start; offset < offset_end; offset++){
         // New row
         if(offset % I->bytes_per_line == 0 ){
@@ -338,7 +336,7 @@ void editor_render_content(HEBuff* buff){
             }
         }
 
-        if(offset == offset_end && offset_end == 1){
+        if(I->content_length == 0){
             buff_vappendf(buff, "%02x", 0);
         }else{
             // Write the value on the screen (HEBuff)
@@ -705,9 +703,13 @@ void editor_undo_insert_offset(unsigned int offset){
 void editor_redo_insert_offset(unsigned int offset, byte_t b){
     I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
     memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
-    I->content[offset].c = b.o;
-    //I->content[offset].o = b.o;
+    I->content[offset].c = b.c;
+    I->content[offset].o = b.o;
     I->content_length++;
+}
+
+void editor_undo_delete_offset(unsigned int offset, byte_t b){
+    editor_redo_insert_offset(offset, b);
 }
 
 void editor_delete_offset(unsigned int offset) {
@@ -718,6 +720,7 @@ void editor_delete_offset(unsigned int offset) {
         I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
         I->content_length--;
         action_add(I->action_list, ACTION_DELETE, offset, original_byte, old_byte);
+        editor_cursor_offset(offset);
     }
 }
 
@@ -729,8 +732,22 @@ void editor_delete_cursor(){
     }
 }
 
+void editor_delete_cursor_repeat(){
+    for(int r=0; r < I->repeat; r++){
+        editor_delete_cursor();
+    }
+}
+
+
 void editor_reset_write_repeat(){
     I->last_write_offset = -1;
+}
+
+void editor_redo_delete_offset(unsigned int offset, byte_t b){
+    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
+    I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+    I->content_length--;
+    editor_cursor_offset(offset);
 }
 
 void editor_undo_redo_replace_offset(unsigned int offset, byte_t b){
@@ -831,8 +848,9 @@ void editor_redo(int repeat){
             editor_redo_insert_offset(offset, b);
             editor_cursor_offset_scroll(offset);
             break;
+        case ACTION_DELETE:
+            editor_redo_delete_offset(offset, b); break;
         case ACTION_APPEND: break;
-        case ACTION_DELETE: break;
     }
 
 }
@@ -858,7 +876,7 @@ void editor_undo(int repeat){
             editor_cursor_offset_scroll(offset);
             break;
         case ACTION_DELETE:
-            editor_redo_insert_offset(offset, b);
+            editor_undo_delete_offset(offset, b);
             editor_cursor_offset_scroll(offset);
             break;
         case ACTION_APPEND: break;
@@ -922,7 +940,7 @@ void editor_process_keypress(){
             case 'v': editor_set_mode(MODE_VISUAL); break;
 
             // Remove
-            case 'x': editor_delete_cursor(); break;
+            case 'x': editor_delete_cursor_repeat(); break;
 
             // TODO: Repeat last write command
             case '.': editor_repeat_last_action(); break;

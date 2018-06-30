@@ -238,7 +238,9 @@ void editor_move_cursor(int dir, int amount){
 }
 
 void editor_move_cursor_visual(int dir, int amount){
+
     editor_move_cursor(dir, amount);
+
     unsigned int offset = editor_offset_at_cursor();
 
     // If we moving backwards, the start of selection
@@ -733,6 +735,9 @@ void editor_replace_cursor_repeat(){
 void editor_replace_visual(){
 
     int c = utils_read_key();
+
+    // No need to scroll
+    editor_cursor_offset(I->selection.start);
 
     if(isxdigit(c)){
         if(I->in_ascii){

@@ -56,7 +56,7 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset, 
     list->last    = action;
     list->current = action;
 
-    action_list_print(list);
+    //action_list_print(list);
 
 }
 

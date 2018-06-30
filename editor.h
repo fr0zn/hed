@@ -43,7 +43,7 @@ typedef struct {
     unsigned int bytes_group;
     unsigned int groups_per_line;
 
-    unsigned int scrolled; // Lines scrolled
+    int scrolled; // Lines scrolled
 
     HESelection selection; // For visual mode
 

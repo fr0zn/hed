@@ -147,25 +147,37 @@ void editor_cursor_offset(unsigned int offset){
     I->cursor_y = offset / I->bytes_per_line - I->scrolled + 1;
 }
 
-void editor_cursor_offset_scroll(unsigned int offset){
+void editor_check_scroll_top_limit(){
+
+    // Max scroll
+    unsigned int top_limit = I->content_length/I->bytes_per_line - (I->screen_rows-3);
+    if(I->scrolled >= top_limit){
+        I->scrolled = top_limit;
+    }
+}
+
+void editor_cursor_offset_scroll(int offset){
     if(offset > I->content_length){
         // Out of bounds
+        return;
     }
 
     // Check if offset is in view range
     unsigned int offset_min = I->scrolled * I->bytes_per_line;
-	unsigned int offset_max = offset_min + ((I->screen_rows-3) * I->bytes_per_line);
+	unsigned int offset_max = offset_min + ((I->screen_rows-1) * I->bytes_per_line);
 
     if (offset >= offset_min && offset <= offset_max) {
         editor_cursor_offset(offset);
         return;
     }
 
-    I->scrolled = offset / I->bytes_per_line; // - (I->screen_rows / 2);
+    I->scrolled = (int) (offset / I->bytes_per_line - ((I->screen_rows-2)/2));
 
     if (I->scrolled <= 0) {
         I->scrolled = 0;
     }
+
+    editor_check_scroll_top_limit();
 
     editor_cursor_offset(offset);
 }
@@ -175,10 +187,7 @@ void editor_scroll(int units) {
 
     I->scrolled += units;
 
-    /*int upper_limit = I->content_length / I->bytes_per_line - (I->screen_rows - 3);*/
-    /*if (I->scrolled >= upper_limit) {*/
-        /*I->scrolled = upper_limit;*/
-    /*}*/
+    editor_check_scroll_top_limit();
 
 }
 
@@ -1016,6 +1025,24 @@ void editor_process_keypress(){
         }
     }
     else if(I->mode == MODE_VISUAL){
+        // TODO: Implement key repeat correctly
+        if(c != '0'){
+            unsigned int count = 0;
+            while(isdigit(c) && count < 5){
+                command[count] = c;
+                command[count+1] = '\0';
+                editor_render_command(command);
+                c = utils_read_key();
+                count++;
+            }
+
+            // Store in case we change mode
+            I->repeat = atoi(command);
+            if(I->repeat <= 0 ){
+                I->repeat = 1;
+            }
+        }
+
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             editor_set_mode(MODE_NORMAL);
@@ -1026,6 +1053,8 @@ void editor_process_keypress(){
                 case 'k': editor_move_cursor_visual(KEY_UP, I->repeat); break;
                 case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
 
+                case 'w': editor_move_cursor_visual(KEY_RIGHT, I->repeat*I->bytes_group); break;
+                case 'b': editor_move_cursor_visual(KEY_LEFT, I->repeat*I->bytes_group); break;
 
                 case 'r': editor_replace_visual(); break;
                 case 'x': editor_delete_visual(); break;

@@ -274,10 +274,7 @@ void editor_render_content(HEBuff* buff){
 
     int offset;
 
-    editor_calculate_bytes_per_line();
-
     chars_until_ascii = 10 + I->bytes_per_line * 2 + I->bytes_per_line/2;
-
 
     int offset_start = I->scrolled * I->bytes_per_line;
 
@@ -304,7 +301,7 @@ void editor_render_content(HEBuff* buff){
             line_chars = 0;
             line_bytes = 0;
             line_offset_start = offset;
-            buff_vappendf(buff, "\x1b[34m%08x: \x1b[0m", offset);
+            buff_vappendf(buff, "\x1b[34m%08x: ", offset);
             line_chars += 10;
             row++;
             // Cursor side
@@ -312,13 +309,14 @@ void editor_render_content(HEBuff* buff){
                 // Color yellow
                 buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, "|", 1);
-                buff_append(buff, "\x1b[0m", 4);
             }else{
                 buff_append(buff, " ", 1);
             }
             line_chars += 1;
             // End Cursor side
         }
+
+        buff_append(buff, "\x1b[0m", 4);
 
         // Selection
         if(offset >= I->selection.start && offset <= I->selection.end){
@@ -367,11 +365,9 @@ void editor_render_content(HEBuff* buff){
             if(I->in_ascii == false){
                 buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, "| ", 2);
-                buff_append(buff, "\x1b[0m", 4);
             }else{
                 buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, " |", 2);
-                buff_append(buff, "\x1b[0m", 4);
             }
             line_chars += 2;
             // End Cursor side
@@ -389,18 +385,19 @@ void editor_render_content(HEBuff* buff){
                 buff_append(buff, " ", 1);
                 line_chars++;
         }
+        buff_append(buff, "\x1b[33m", 5);
         if(I->in_ascii == false){
-            buff_append(buff, "\x1b[33m", 5);
             buff_append(buff, "| ", 2);
-            buff_append(buff, "\x1b[0m", 4);
         }else{
-            buff_append(buff, "\x1b[33m", 5);
             buff_append(buff, " |", 2);
-            buff_append(buff, "\x1b[0m", 4);
         }
+        buff_append(buff, "\x1b[0m", 4);
         // Render ascii
         editor_render_ascii(row, line_offset_start, line_bytes);
     }
+
+    // clear everything up until the end
+    buff_append(buff, "\x1b[0K", 4);
 
 }
 
@@ -522,8 +519,7 @@ void editor_refresh_screen(){
     editor_render_status(buff);
     editor_render_ruler(buff);
 
-    // Clear the screen and write the buffer on it
-    term_clear();
+    // Write the buffer on the screen
     term_draw(buff);
 }
 
@@ -1043,6 +1039,8 @@ void editor_resize(){
 
     // Get new terminal size
     term_get_size(I);
+    // New bytes per line
+    editor_calculate_bytes_per_line();
     // Redraw the screen
     editor_refresh_screen();
 }
@@ -1084,6 +1082,9 @@ void editor_init(char *filename){
     I->cursor_x = 0;
 
     editor_open_file(filename);
+
+    // New bytes per line
+    editor_calculate_bytes_per_line();
 
     term_clear();
     // Register the resize handler

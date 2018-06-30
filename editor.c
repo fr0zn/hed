@@ -56,10 +56,17 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
 
     byte_t *c;
     HEBuff* buff = I->buff;
+    int offset = start;
 
     for(int i = 0; i < len; i++){
         // Get byte to write
-        c = &I->content[start + i];
+        offset = start + i;
+        c = &I->content[offset];
+
+        // Selection
+        if(offset >= I->selection.start && offset <= I->selection.end){
+            buff_append(buff, "\x1b[47m", 5);
+        }
 
         // Cursor
         if(I->cursor_y == row){
@@ -230,6 +237,28 @@ void editor_move_cursor(int dir, int amount){
 
 }
 
+void editor_move_cursor_visual(int dir, int amount){
+    editor_move_cursor(dir, amount);
+    unsigned int offset = editor_offset_at_cursor();
+
+    // If we moving backwards, the start of selection
+    if(offset <= I->selection.start && !I->selection.is_backwards){
+        I->selection.end          = I->selection.start;
+        I->selection.is_backwards = true;
+    }else if(offset >= I->selection.end && I->selection.is_backwards){
+    // If we are crossing forwards again
+        I->selection.start        = I->selection.end;
+        I->selection.is_backwards = false;
+    }
+
+    if(I->selection.is_backwards){
+        I->selection.start = offset;
+    }else{
+        I->selection.end = offset;
+    }
+
+}
+
 void editor_render_content(HEBuff* buff){
 
     unsigned int line_chars = 0;
@@ -283,6 +312,11 @@ void editor_render_content(HEBuff* buff){
             }
             line_chars += 1;
             // End Cursor side
+        }
+
+        // Selection
+        if(offset >= I->selection.start && offset <= I->selection.end){
+            buff_append(buff, "\x1b[47m", 5);
         }
 
         // Cursor
@@ -386,6 +420,9 @@ void editor_set_status(const char *fmt, ...){
 
 void editor_start_mode_normal(){
     editor_set_status("");
+    // Reset selection
+    I->selection.start = -1;
+    I->selection.end = -1;
 }
 
 void editor_start_mode_replace(){
@@ -404,6 +441,13 @@ void editor_start_mode_insert(){
     }
 }
 
+void editor_start_mode_visual(){
+    unsigned int offset = editor_offset_at_cursor();
+    editor_set_status("-- VISUAL --");
+    I->selection.start = offset;
+    I->selection.end   = offset;
+}
+
 void editor_start_mode_cursor(){
     editor_set_status("-- CURSOR --");
 }
@@ -415,6 +459,7 @@ void editor_set_mode(enum editor_mode mode){
         case MODE_INSERT:   editor_start_mode_insert(); break;
         case MODE_REPLACE:  editor_start_mode_replace(); break;
         case MODE_CURSOR:   editor_start_mode_cursor(); break;
+        case MODE_VISUAL:   editor_start_mode_visual(); break;
         case MODE_COMMAND:  break;
     }
 }
@@ -685,6 +730,37 @@ void editor_replace_cursor_repeat(){
     }
 }
 
+void editor_replace_visual(){
+
+    int c = utils_read_key();
+
+    if(isxdigit(c)){
+        if(I->in_ascii){
+            for(int i= I->selection.start; i <= I->selection.end; i++){
+                editor_replace_offset(i, c);
+            }
+        }else{
+            int c2 = utils_read_key();
+            if(isxdigit(c2)){
+                for(int i= I->selection.start; i <= I->selection.end; i++){
+                    editor_replace_offset(i, c); // First octet
+                    editor_replace_offset(i, c2); // Second octet
+                }
+
+            }else{
+                for(int i= I->selection.start; i <= I->selection.end; i++){
+                    editor_replace_offset(i, c); // First octet
+                    editor_replace_offset(i, c); // Second octet
+                }
+
+            }
+        }
+    }
+
+    editor_set_mode(MODE_NORMAL);
+
+}
+
 void editor_repeat_last_action(){
 
     HEActionList *list = I->action_list;
@@ -818,6 +894,7 @@ void editor_process_keypress(){
             case 'i': editor_set_mode(MODE_INSERT); break;
             case 'c': editor_set_mode(MODE_CURSOR); break;
             case 'r': editor_set_mode(MODE_REPLACE); break;
+            case 'v': editor_set_mode(MODE_VISUAL); break;
 
             // Remove
             case 'x': editor_delete_cursor(); break;
@@ -884,6 +961,21 @@ void editor_process_keypress(){
         }else{
         }
     }
+    else if(I->mode == MODE_VISUAL){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC){
+            editor_set_mode(MODE_NORMAL);
+        }else{
+            switch(c){
+                case 'h': editor_move_cursor_visual(KEY_LEFT, I->repeat); break;
+                case 'j': editor_move_cursor_visual(KEY_DOWN, I->repeat); break;
+                case 'k': editor_move_cursor_visual(KEY_UP, I->repeat); break;
+                case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
+
+                case 'r': editor_replace_visual(); break;
+            }
+        }
+    }
 
 }
 
@@ -923,6 +1015,10 @@ void editor_init(char *filename){
 
     I->action_list = action_list_init();
     I->in_ascii = false;
+
+    I->selection.start = -1;
+    I->selection.end   = -1;
+    I->selection.is_backwards   = false;
 
     I->cursor_y = 1;
     I->cursor_x = 0;

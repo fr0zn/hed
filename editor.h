@@ -13,7 +13,14 @@ enum editor_mode {
     MODE_REPLACE      = 0x003,
     MODE_INSERT       = 0x004,
     MODE_CURSOR       = 0x005,
+    MODE_VISUAL       = 0x006,
 };
+
+typedef struct {
+    int start;
+    int end;
+    bool is_backwards;
+}HESelection;
 
 
 // Struct to store the state of the editor, such as the position on the screen
@@ -38,6 +45,8 @@ typedef struct {
 
     unsigned int scrolled; // Lines scrolled
 
+    HESelection selection; // For visual mode
+
     HEActionList *action_list;
 
     bool in_ascii;
@@ -50,12 +59,8 @@ typedef struct {
     byte_t last_byte;
     unsigned int last_write_offset;
 
-    //uint8_t *bytes_changed; // Map keeping track of the bytes changed (1->changed, 0->original)
-
     byte_t *content;
 
-    //char *original_content;  // The original content of the file we are working on
-    //char *file_content;  // The content of the file we are working on
     char *file_name; // The name of the file we are working on
     unsigned int content_length; // Stores the length of the file
 

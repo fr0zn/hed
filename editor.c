@@ -24,7 +24,8 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
 
     char buff[MAX_STATUS_BAR];
 
-    buff_clear(I->status_message);
+    // We control the len on print
+    buff_clear_dirty(I->status_message);
 
     switch(type){
         case STATUS_INFO: buff_append(I->status_message, "\x1b[34m", 5); break;
@@ -530,6 +531,11 @@ void editor_start_mode_cursor(){
     editor_set_status(STATUS_MODE, "-- CURSOR --");
 }
 
+void editor_start_mode_command(){
+    editor_set_status(STATUS_MODE, ":");
+
+}
+
 void editor_set_mode(enum editor_mode mode){
     I->mode = mode;
     switch(I->mode){
@@ -538,7 +544,7 @@ void editor_set_mode(enum editor_mode mode){
         case MODE_REPLACE:  editor_start_mode_replace(); break;
         case MODE_CURSOR:   editor_start_mode_cursor(); break;
         case MODE_VISUAL:   editor_start_mode_visual(); break;
-        case MODE_COMMAND:  break;
+        case MODE_COMMAND:  editor_start_mode_command(); break;
     }
 }
 
@@ -590,15 +596,24 @@ void editor_refresh_screen(){
     HEBuff* buff = I->buff;
 
     // Clear the content of the buffer
-    buff_clear(buff);
+    // To speed the screen refresh, we use buff_clear_dirty, instead
+    // of buff_clear
+    buff_clear_dirty(buff);
 
     buff_append(buff, "\x1b[?25l", 6); // Hide cursor
     buff_append(buff, "\x1b[H", 3); // Move cursor top left
 
-
     editor_render_content(buff);
     editor_render_status(buff);
     editor_render_ruler(buff);
+
+    if(I->mode == MODE_COMMAND){
+        // display cursor
+        buff_append(I->buff, "\x1b[?25h", 6);
+        // move cursor down
+        buff_vappendf(I->buff, "\x1b[%d;2H", I->screen_rows);
+        buff_append(I->buff, I->read_buff->content, I->read_buff->len);
+    }
 
     // Write the buffer on the screen
     term_draw(buff);
@@ -988,14 +1003,83 @@ void editor_toggle_cursor(){
     I->in_ascii = (I->in_ascii == true) ? false: true;
 }
 
+void editor_process_quit(bool force){
+
+    if(force){
+        exit(0);
+    }
+
+    if(I->dirty){
+        editor_set_status(STATUS_ERROR, "No write since last change");
+        return;
+    }
+
+    exit(0);
+}
+
+void editor_process_command(){
+
+    int len = I->read_buff->len;
+    char *content = I->read_buff->content;
+
+    if(len == 0){
+        return;
+    }
+
+    switch(content[0]){
+        case 'q':
+            if(len == 1){
+                editor_process_quit(false);
+            }else if(len == 2 && content[1] == '!'){
+                editor_process_quit(true);
+            }
+        default:
+            editor_set_status(STATUS_ERROR, "Not an editor command: %s", content);
+    }
+
+    buff_clear(I->read_buff);
+}
+
+char editor_read_string(){
+    char c = utils_read_key();
+    HEBuff *buff = I->read_buff;
+
+    if (c == KEY_ENTER || c == KEY_ESC) {
+        return c;
+    }
+    if (c == KEY_BACKSPACE){
+        buff_delete_last(buff);
+        // If empty
+        if(buff->len == 0){
+            c = KEY_ESC;
+            return c;
+        }
+        buff->len--;
+        return c;
+    }
+    buff_append(buff, &c, 1);
+    return c;
+}
+
 // Process the key pressed
 void editor_process_keypress(){
 
     char command[MAX_COMMAND];
     command[0] = '\0';
 
+    int c;
+
+    if(I->mode == MODE_COMMAND){
+        c = editor_read_string();
+        if (c == KEY_ENTER || c == KEY_ESC) {
+            editor_set_mode(MODE_NORMAL);
+            editor_process_command();
+        }
+        return;
+    }
+
     // Read first command char
-    int c = utils_read_key();
+    c = utils_read_key();
 
     if(I->mode == MODE_NORMAL){
         // TODO: Implement key repeat correctly
@@ -1017,8 +1101,6 @@ void editor_process_keypress(){
         }
 
         switch (c){
-            case 'q': exit(0); break;
-
             case KEY_TAB: editor_toggle_cursor(); break;
 
             case 'h': editor_move_cursor(KEY_LEFT, I->repeat); break;
@@ -1037,6 +1119,7 @@ void editor_process_keypress(){
             case 'c': editor_set_mode(MODE_CURSOR); break;
             case 'r': editor_set_mode(MODE_REPLACE); break;
             case 'v': editor_set_mode(MODE_VISUAL); break;
+            case ':': editor_set_mode(MODE_COMMAND); break;
 
             // Remove
             case 'x': editor_delete_cursor_repeat(); break;
@@ -1069,7 +1152,6 @@ void editor_process_keypress(){
             case '$': editor_move_cursor(KEY_RIGHT, I->bytes_per_line-1 - I->cursor_x); break;
         }
     }
-
     else if(I->mode == MODE_REPLACE){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
@@ -1170,6 +1252,9 @@ void editor_init(char *filename){
     // status bar & mode
     I->mode = MODE_NORMAL;
     I->status_message = buff_create();
+
+    // Read command
+    I->read_buff = malloc(sizeof(HEBuff));
 
     // Write
     I->last_byte = (byte_t){0,0};

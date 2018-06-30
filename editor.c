@@ -192,6 +192,12 @@ void editor_scroll(int units) {
 }
 
 void editor_move_cursor(int dir, int amount){
+
+    // Don't move if file empty
+    if(I->content_length == 0){
+        return;
+    }
+
     for(int i = 0; i < amount; i++){
         switch (dir){
             case KEY_UP: I->cursor_y--; break;
@@ -497,6 +503,7 @@ void editor_render_ruler(HEBuff* buff){
         percentage = offset*100/(I->content_length-1);
     }
     buff_vappendf(buff, "0x%08x (%d)  %d%%", offset, offset, percentage);
+    buff_append(buff, "\x1b[0K", 4);
 }
 
 void editor_render_status(HEBuff* buff){
@@ -511,6 +518,7 @@ void editor_render_status(HEBuff* buff){
         buff_append(buff, "...", 3);
     }
     buff_append(buff, I->status_message, len);
+    buff_append(buff, "\x1b[0K", 4);
 }
 
 void editor_refresh_screen(){

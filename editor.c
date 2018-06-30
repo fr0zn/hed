@@ -411,8 +411,8 @@ void editor_render_content(HEBuff* buff){
         editor_render_ascii(row, line_offset_start, line_bytes);
     }
 
-    // clear everything up until the end
-    buff_append(buff, "\x1b[0K", 4);
+    // clear everything up until the end of the screen
+    buff_append(buff, "\x1b[J", 3);
 
 }
 

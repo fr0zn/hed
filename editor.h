@@ -58,6 +58,8 @@ typedef struct {
 
     bool in_ascii;
 
+    HEBuff *read_buff; // For command
+
     // Stores the next command repetitions (from normal mode)
     HEBuff *repeat_buff;
     unsigned int repeat;

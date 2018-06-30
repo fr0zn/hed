@@ -412,8 +412,8 @@ void editor_render_content(HEBuff* buff){
     }
 
 
-    while(++row < I->screen_rows){
-        // clear everything up until the end
+    while(++row <= I->screen_rows - 2){
+        // clear everything up until the status bar and ruler
         buff_vappendf(buff, "\x1b[%d;H", row);
         buff_append(buff, "\x1b[2K", 4);
     }

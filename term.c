@@ -47,7 +47,6 @@ void term_disable_raw(HEState* state){
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &(state->term_original));
     // Show the cursor again
     write(STDOUT_FILENO, "\x1b[?25h]", 6);
-
 }
 
 // Clear the screen and colors
@@ -56,7 +55,7 @@ void term_clear(){
     write(STDOUT_FILENO, "\x1b[0m\x1b\[H\x1b[2J", 11);
 }
 
-void term_print(char *data, ssize_t len){
+void term_print(const char *data, ssize_t len){
     if(write(STDOUT_FILENO, data, len) == -1){
         perror("Couldn't write the content");
         exit(1);

@@ -18,7 +18,7 @@ void term_disable_raw(HEState* state);
 void term_clear();
 
 // Prints a char array
-void term_print(char *data, ssize_t len);
+void term_print(const char *data, ssize_t len);
 
 // Draws the buffer
 void term_draw(HEBuff* buff);

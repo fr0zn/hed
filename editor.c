@@ -365,7 +365,6 @@ void editor_render_content(HEBuff* buff){
     unsigned int line_offset_start = 0;
 
     int row = 0;
-    int col = 0;
 
     int offset;
 
@@ -635,12 +634,8 @@ void editor_refresh_screen(){
     editor_render_status(buff);
     editor_render_ruler(buff);
 
-    if(I->mode == MODE_COMMAND){
-        // display cursor
-        buff_append(I->buff, "\x1b[?25h", 6);
-        // move cursor down
-        buff_vappendf(I->buff, "\x1b[%d;1H", I->screen_rows);
-    }
+    // Move to the last line of the screen
+    buff_vappendf(I->buff, "\x1b[%d;1H", I->screen_rows);
 
     // Write the buffer on the screen
     term_draw(buff);

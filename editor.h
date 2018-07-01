@@ -4,6 +4,7 @@
 #include "buff.h"
 #include "utils.h"
 #include "action.h"
+#include "grammar.h"
 #include <termios.h>
 #include <stdbool.h>
 
@@ -14,6 +15,7 @@ enum editor_mode {
     MODE_INSERT       = 0x004,
     MODE_CURSOR       = 0x005,
     MODE_VISUAL       = 0x006,
+    MODE_GRAMMAR      = 0x007,
 };
 
 enum status_message {
@@ -59,6 +61,8 @@ typedef struct {
     bool in_ascii;
 
     HEBuff *read_buff; // For command
+
+    HEGrammarList *grammars;
 
     // Stores the next command repetitions (from normal mode)
     HEBuff *repeat_buff;

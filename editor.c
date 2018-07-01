@@ -2,6 +2,8 @@
 #include "term.h"
 #include "utils.h"
 #include "action.h"
+#include "grammar.h"
+#include "readline.h"
 
 #include <stdio.h>
 #include <signal.h>
@@ -10,6 +12,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
+
 
 static HEState *hestate = NULL;
 // Instance as I
@@ -77,6 +80,7 @@ void editor_open_file(char *filename){
         fread(&c, 1, 1, fp);
         I->content[i].o = c;
         I->content[i].c = c;
+        I->content[i].g = -1;
     }
 
     // Check if the file is readonly, and warn the user about that.
@@ -336,6 +340,22 @@ void editor_move_cursor_visual(int dir, int amount){
 
 }
 
+void editor_define_grammar_offset(int start, int end){
+    int index = grammar_add(I->grammars, "", start, end, COLOR_RED_BG);
+    for(int i = start; i <= end; i++){
+        I->content[i].g = index;
+    }
+}
+
+void editor_define_grammar_cursor(){
+    unsigned int offset = editor_offset_at_cursor();
+    editor_define_grammar_offset(offset, offset);
+}
+
+void editor_define_grammar_visual(){
+    editor_define_grammar_offset(I->selection.start, I->selection.end);
+}
+
 void editor_render_content(HEBuff* buff){
 
     unsigned int line_chars = 0;
@@ -412,6 +432,12 @@ void editor_render_content(HEBuff* buff){
         if(I->content_length == 0){
             buff_vappendf(buff, "%02x", 0);
         }else{
+            // Grammar color
+            enum color_bg color = grammar_color_id(I->grammars, I->content[offset].g);
+            if(color != COLOR_NOCOLOR){
+                buff_vappendf(buff, "\x1b[%dm", color);
+            }
+
             // Write the value on the screen (HEBuff)
             // If the value is changed
             if(I->content[offset].c != I->content[offset].o){
@@ -419,6 +445,7 @@ void editor_render_content(HEBuff* buff){
             }else{
                 buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c & 0xff);
             }
+
         }
 
         line_chars += 2;
@@ -545,6 +572,7 @@ void editor_set_mode(enum editor_mode mode){
         case MODE_CURSOR:   editor_start_mode_cursor(); break;
         case MODE_VISUAL:   editor_start_mode_visual(); break;
         case MODE_COMMAND:  editor_start_mode_command(); break;
+        case MODE_GRAMMAR:  break;
     }
 }
 
@@ -611,8 +639,7 @@ void editor_refresh_screen(){
         // display cursor
         buff_append(I->buff, "\x1b[?25h", 6);
         // move cursor down
-        buff_vappendf(I->buff, "\x1b[%d;2H", I->screen_rows);
-        buff_append(I->buff, I->read_buff->content, I->read_buff->len);
+        buff_vappendf(I->buff, "\x1b[%d;1H", I->screen_rows);
     }
 
     // Write the buffer on the screen
@@ -1017,60 +1044,55 @@ void editor_process_quit(bool force){
     exit(0);
 }
 
-void editor_process_command(){
+void editor_process_command(char *command){
 
-    int len = I->read_buff->len;
-    char *content = I->read_buff->content;
+    int len = strlen(command);
 
     if(len == 0){
         return;
     }
 
-    switch(content[0]){
+    switch(command[0]){
         case 'w':
             if(len == 1){
                 editor_write_file();
-            }else if(len == 2 && content[1] == 'q'){
+            }else if(len == 2 && command[1] == 'q'){
+                editor_write_file();
                 editor_process_quit(false);
-            }else if(len == 3 && content[1] == 'q' && content[2] == '!'){
+            }else if(len == 3 && command[1] == 'q' && command[2] == '!'){
+                editor_write_file();
                 editor_process_quit(true);
             }
             break;
         case 'q':
             if(len == 1){
                 editor_process_quit(false);
-            }else if(len == 2 && content[1] == '!'){
+            }else if(len == 2 && command[1] == '!'){
                 editor_process_quit(true);
             }
             break;
 
         default:
-            editor_set_status(STATUS_ERROR, "Not an editor command: %s", content);
+            editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
     }
 
-    buff_clear(I->read_buff);
 }
 
-char editor_read_string(){
-    char c = utils_read_key();
-    HEBuff *buff = I->read_buff;
 
-    if (c == KEY_ENTER || c == KEY_ESC) {
-        return c;
-    }
-    if (c == KEY_BACKSPACE){
-        buff_delete_last(buff);
-        // If empty
-        if(buff->len == 0){
-            c = KEY_ESC;
-            return c;
-        }
-        buff->len--;
-        return c;
-    }
-    buff_append(buff, &c, 1);
-    return c;
+char* editor_read_string(char *prompt){
+    char *str;
+    term_print("\x1b[?25h", 6); // Show cursor
+    str = readline(prompt);
+    term_print("\x1b[?25l", 6); // Hide cursor
+    return str;
 }
+
+char* editor_read_command(){
+    char *cmd;
+    cmd = editor_read_string(":");
+    return cmd;
+}
+
 
 // Process the key pressed
 void editor_process_keypress(){
@@ -1078,14 +1100,14 @@ void editor_process_keypress(){
     char command[MAX_COMMAND];
     command[0] = '\0';
 
+    char *cmd;
+
     int c;
 
     if(I->mode == MODE_COMMAND){
-        c = editor_read_string();
-        if (c == KEY_ENTER || c == KEY_ESC) {
-            editor_set_mode(MODE_NORMAL);
-            editor_process_command();
-        }
+        cmd = editor_read_command();
+        editor_set_mode(MODE_NORMAL);
+        editor_process_command(cmd);
         return;
     }
 
@@ -1122,7 +1144,7 @@ void editor_process_keypress(){
             case 'w': editor_move_cursor(KEY_RIGHT, I->repeat*I->bytes_group); break;
             case 'b': editor_move_cursor(KEY_LEFT, I->repeat*I->bytes_group); break;
 
-            case 's': editor_write_file(); break;
+            case 'd': editor_define_grammar_cursor(); break;
 
             // Modes
             case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
@@ -1225,6 +1247,8 @@ void editor_process_keypress(){
                 case 'k': editor_move_cursor_visual(KEY_UP, I->repeat); break;
                 case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
 
+                case 'd': editor_define_grammar_visual(); break;
+
                 case 'w': editor_move_cursor_visual(KEY_RIGHT, I->repeat*I->bytes_group); break;
                 case 'b': editor_move_cursor_visual(KEY_LEFT, I->repeat*I->bytes_group); break;
 
@@ -1278,6 +1302,8 @@ void editor_init(char *filename){
 
     I->action_list = action_list_init();
     I->in_ascii = false;
+
+    I->grammars = grammar_list_create();
 
     I->selection.start = -1;
     I->selection.end   = -1;

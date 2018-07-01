@@ -9,6 +9,26 @@ int utils_read_key(){
         return -1;
     }
 
+    char seq[4]; // escape sequence buffer.
+
+    switch(c){
+        case KEY_ESC:
+            if (read(STDIN_FILENO, seq, 1) == 0) {
+                return KEY_ESC;
+            }
+            if (read(STDIN_FILENO, seq + 1, 1) == 0) {
+                return KEY_ESC;
+            }
+            if (seq[0] == '[') {
+                switch (seq[1]) {
+                case 'A': return KEY_UP;
+                case 'B': return KEY_DOWN;
+                case 'C': return KEY_RIGHT;
+                case 'D': return KEY_LEFT;
+                }
+            }
+    }
+
     return c;
 }
 

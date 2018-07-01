@@ -9,6 +9,7 @@ unsigned char utils_atoh (unsigned char chr);
 // Key enumeration, returned by utils_read_key().
 enum key_codes {
     KEY_NULL      = 0,
+    KEY_CTRL_C    = 0x03,
     KEY_CTRL_D    = 0x04,
     KEY_CTRL_H    = 0x08,
     KEY_TAB       = 0x09,
@@ -34,6 +35,7 @@ enum key_codes {
 typedef struct {
     uint8_t o; // Original
     uint8_t c; // Current
+    int g; // Grammar index
 } byte_t;
 
 #endif

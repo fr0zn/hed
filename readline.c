@@ -18,7 +18,7 @@ char* readline(const char *prompt ){
     if(buff == NULL){
         buff = buff_create();
     }else{
-        buff_clear(buff);
+        buff_clear_dirty(buff);
     }
 
     // Print the prompt
@@ -40,7 +40,7 @@ char* readline(const char *prompt ){
         }
         if(c == KEY_CTRL_C || c == KEY_ESC){
             // Clear the buffer
-            buff_clear(buff);
+            buff_clear_dirty(buff);
             break;
         }
         if(isprint(c)){

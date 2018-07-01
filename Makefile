@@ -1,11 +1,27 @@
-CFLAGS =
-objects := he.o editor.o buff.o term.o utils.o action.o
+EXE :=  he
+SRC :=  $(shell find . -maxdepth 1 -type f -name '*.c')
+OBJ :=  $(SRC:.c=.o)
+LIBS =
 
-all: he
-he: $(objects)
+# Preprocessor flags here
+CPPFLAGS    :=  -I.
+# Compiler flags here
+CFLAGS      :=  -std=c99 -Wall -Werror-implicit-function-declaration
 
-debug: CFLAGS += -g -Og
-debug: all
+.PHONY: all clean
+
+all: CPPFLAGS += -DNDEBUG
+all: $(EXE)
+
+debug: CPPFLAGS += -DDEBUG
+debug: CFLAGS += -g
+debug: $(EXE)
+
+$(EXE): $(OBJ)
+	@echo "Compilation complete!"
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(LIBS) -o $@
+	@echo "Linking complete!"
 
 clean:
-	$(RM) $(objects) he
+	@$(RM) $(EXE) $(OBJ) *.dSYM
+	@echo "Cleanup complete!"

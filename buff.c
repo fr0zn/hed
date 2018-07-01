@@ -45,7 +45,7 @@ void buff_clear_dirty(HEBuff* buff){
 
 void buff_delete_last(HEBuff* buff){
     if(buff->len > 0 ){
-        buff->content[buff->len] = 0;
+        buff->content[buff->len-1] = 0;
         buff->len--;
     }
 }

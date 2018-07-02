@@ -1,27 +1,23 @@
-EXE :=  hed
-SRC :=  $(shell find . -maxdepth 1 -type f -name '*.c')
-OBJ :=  $(SRC:.c=.o)
-LIBS =
+EXE = hed
 
-# Preprocessor flags here
-CPPFLAGS    :=  -I.
-# Compiler flags here
-CFLAGS      :=  -std=c99 -Wall -Werror-implicit-function-declaration
+SRC_DIR = src
+OBJ_DIR = obj
+
+SRC = $(wildcard $(SRC_DIR)/*.c)
+OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+
+CPPFLAGS += -Iinclude
+CFLAGS += -Wall
 
 .PHONY: all clean
 
-all: CPPFLAGS += -DNDEBUG
 all: $(EXE)
 
-debug: CPPFLAGS += -DDEBUG
-debug: CFLAGS += -g
-debug: $(EXE)
-
 $(EXE): $(OBJ)
-	@echo "Compilation complete!"
-	$(CC) $(LDFLAGS) $^ $(LDLIBS) $(LIBS) -o $@
-	@echo "Linking complete!"
+	$(CC) $^ -o $@
+
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	@$(RM) $(OBJ) *.dSYM
-	@echo "Cleanup complete!"
+	$(RM) $(OBJ)

@@ -1,4 +1,4 @@
-#include "grammar.h"
+#include "hed_grammar.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

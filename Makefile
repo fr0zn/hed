@@ -1,4 +1,4 @@
-EXE :=  he
+EXE :=  hed
 SRC :=  $(shell find . -maxdepth 1 -type f -name '*.c')
 OBJ :=  $(SRC:.c=.o)
 LIBS =
@@ -23,5 +23,5 @@ $(EXE): $(OBJ)
 	@echo "Linking complete!"
 
 clean:
-	@$(RM) $(EXE) $(OBJ) *.dSYM
+	@$(RM) $(OBJ) *.dSYM
 	@echo "Cleanup complete!"

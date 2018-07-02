@@ -1,4 +1,4 @@
-#include "action.h"
+#include "hed_action.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

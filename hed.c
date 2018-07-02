@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "hed_editor.h"
 #include <stdio.h>
 
 int main(int argc, char *argv[]){

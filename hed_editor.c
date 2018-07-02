@@ -1,9 +1,9 @@
-#include "editor.h"
-#include "term.h"
-#include "utils.h"
-#include "action.h"
-#include "grammar.h"
-#include "readline.h"
+#include "hed_editor.h"
+#include "hed_term.h"
+#include "hed_utils.h"
+#include "hed_action.h"
+#include "hed_grammar.h"
+#include "hed_readline.h"
 
 #include <stdio.h>
 #include <signal.h>

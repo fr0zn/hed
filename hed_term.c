@@ -4,7 +4,7 @@
 #include <termios.h>
 #include <unistd.h>
 
-#include "term.h"
+#include "hed_term.h"
 
 
 void term_get_size(int* rows, int* cols){

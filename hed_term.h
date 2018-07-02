@@ -1,8 +1,8 @@
 #ifndef HE_TERM_H
 #define HE_TERM_H
 
-#include "editor.h"
-#include "buff.h"
+#include "hed_editor.h"
+#include "hed_buff.h"
 #include <unistd.h>
 
 /**

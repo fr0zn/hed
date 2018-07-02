@@ -1,10 +1,10 @@
 #ifndef HE_EDITOR_H
 #define HE_EDITOR_H
 
-#include "buff.h"
-#include "utils.h"
-#include "action.h"
-#include "grammar.h"
+#include "hed_buff.h"
+#include "hed_utils.h"
+#include "hed_action.h"
+#include "hed_grammar.h"
 #include <termios.h>
 #include <stdbool.h>
 

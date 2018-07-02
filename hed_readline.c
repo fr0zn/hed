@@ -1,7 +1,7 @@
-#include "readline.h"
-#include "buff.h"
-#include "utils.h"
-#include "term.h"
+#include "hed_readline.h"
+#include "hed_buff.h"
+#include "hed_utils.h"
+#include "hed_term.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>

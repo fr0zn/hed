@@ -1,7 +1,7 @@
 #include <hed_utils.h>
 
 int utils_hex2int(const char chr) {
-   
+
     // Check if its a number
     if ('0' <= chr && chr <= '9') {
         return chr - '0';

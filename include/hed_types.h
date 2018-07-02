@@ -4,8 +4,19 @@
 #include <stdint.h>
 
 /**
+ * { item_description }
+ */
+typedef struct {
+    char *content;
+    // Current length of filled data
+    unsigned int len;
+    // The max allowed data for the current allocation
+    unsigned int capacity;
+} HEDBuff;
+
+/**
  * Enum of the ANSI Character Escape sequences
- * The values for an specific keyboard can be optained with the 
+ * The values for an specific keyboard can be optained with the
  * python script `helpers/key_code.py`
  */
 typedef enum {
@@ -33,7 +44,7 @@ typedef enum {
     KEY_LEFT,
     KEY_DEL,
     KEY_HOME,
-    KEY_END, 
+    KEY_END,
     KEY_PAGEUP,
     KEY_PAGEDOWN,
 }KEY_CODE;

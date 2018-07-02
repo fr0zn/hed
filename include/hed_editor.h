@@ -44,10 +44,10 @@ typedef struct {
     int cursor_x;
     int cursor_y;
 
-    HEBuff *buff; // Store the screen content
+    HEDBuff *buff; // Store the screen content
 
     enum editor_mode mode; // Mode the editor is in
-    HEBuff* status_message; // Message in the status bar
+    HEDBuff* status_message; // Message in the status bar
 
     unsigned int bytes_per_line;
     unsigned int bytes_group;
@@ -61,12 +61,12 @@ typedef struct {
 
     bool in_ascii;
 
-    HEBuff *read_buff; // For command
+    HEDBuff *read_buff; // For command
 
     HEGrammarList *grammars;
 
     // Stores the next command repetitions (from normal mode)
-    HEBuff *repeat_buff;
+    HEDBuff *repeat_buff;
     unsigned int repeat;
 
     // Write

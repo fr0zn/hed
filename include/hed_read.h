@@ -14,21 +14,30 @@ KEY_CODE read_key();
 
 /**
  * @brief      Reads a line.
- * 
+ *
  * Reads input from the user until KEY_ENTER is pressed.
- * If either Ctrl+C or ESC are pressed the read terminates with an 
+ * If either Ctrl+C or ESC are pressed the read terminates with an
  * empty string. A prompt can be used to read the line.
- * 
+ *
  * Example:
- * 			   read_line("")  // No prompt
- * 			   <user typing>
- * 			   read_line("$") // Shell like prompt
- * 			   $<user typing>
+ *             HEDBuff *buff = buff_create();
  *
- * @param[in]  prompt  The prompt used to read the input
+ *             read_line(buff,"")  // No prompt
+ *             <user typing>
+ *             printf("%s", buff); // Outputs: <user_typing>
  *
- * @return     A pointer to the typed line null terminated
+ *             read_line(buff,"$") // Shell like prompt
+ *             $<user typing>
+ *             printf("%s", buff); // Outputs: <user_typing>
+ *
+ *             buff_remove(buff);
+ *
+ * @param      buff    The buffer where the data will be read
+ *             (see `include/hed_buff.h`)
+ * @param      prompt  The prompt used to read the input
+ *
+ * @return     Rumber of bytes read
  */
-char* read_line(const char *prompt);
+int read_line(HEDBuff* buff, const char *prompt);
 
 #endif

@@ -119,7 +119,7 @@ void editor_write_file(){
 void editor_render_ascii(int row, unsigned int start, unsigned int len){
 
     byte_t *c;
-    HEBuff* buff = I->buff;
+    HEDBuff* buff = I->buff;
     int offset = start;
 
     for(int i = 0; i < len; i++){
@@ -356,7 +356,7 @@ void editor_define_grammar_visual(){
     editor_define_grammar_offset(I->selection.start, I->selection.end);
 }
 
-void editor_render_content(HEBuff* buff){
+void editor_render_content(HEDBuff* buff){
 
     unsigned int line_chars = 0;
     unsigned int line_bytes = 0;
@@ -437,7 +437,7 @@ void editor_render_content(HEBuff* buff){
                 buff_vappendf(buff, "\x1b[%dm", color);
             }
 
-            // Write the value on the screen (HEBuff)
+            // Write the value on the screen (HEDBuff)
             // If the value is changed
             if(I->content[offset].c != I->content[offset].o){
                 buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c & 0xff);
@@ -575,7 +575,7 @@ void editor_set_mode(enum editor_mode mode){
     }
 }
 
-void editor_render_ruler(HEBuff* buff){
+void editor_render_ruler(HEDBuff* buff){
 
     // Left ruler
     // Move to position and clear line
@@ -603,7 +603,7 @@ void editor_render_ruler(HEBuff* buff){
     buff_append(buff, "\x1b[0K", 4);
 }
 
-void editor_render_status(HEBuff* buff){
+void editor_render_status(HEDBuff* buff){
 
     // Move to (0,screen_rows);
     buff_vappendf(buff, "\x1b[%d;0H", I->screen_rows);
@@ -620,7 +620,7 @@ void editor_render_status(HEBuff* buff){
 
 void editor_refresh_screen(){
 
-    HEBuff* buff = I->buff;
+    HEDBuff* buff = I->buff;
 
     // Clear the content of the buffer
     // To speed the screen refresh, we use buff_clear_dirty, instead
@@ -1039,9 +1039,10 @@ void editor_process_quit(bool force){
     exit(0);
 }
 
-void editor_process_command(char *command){
+void editor_process_command(){
 
-    int len = strlen(command);
+    char* command = I->read_buff->content;
+    int len = I->read_buff->len;
 
     if(len == 0){
         return;
@@ -1074,18 +1075,12 @@ void editor_process_command(char *command){
 }
 
 
-char* editor_read_string(char *prompt){
-    char *str;
-    term_print_data("\x1b[?25h", 6); // Show cursor
-    str = read_line(prompt);
-    term_print_data("\x1b[?25l", 6); // Hide cursor
-    return str;
+void editor_read_string(char *prompt){
+    read_line(I->read_buff, prompt);
 }
 
-char* editor_read_command(){
-    char *cmd;
-    cmd = editor_read_string(":");
-    return cmd;
+void editor_read_command(){
+    editor_read_string(":");
 }
 
 
@@ -1095,14 +1090,12 @@ void editor_process_keypress(){
     char command[MAX_COMMAND];
     command[0] = '\0';
 
-    char *cmd;
-
     int c;
 
     if(I->mode == MODE_COMMAND){
-        cmd = editor_read_command();
+        editor_read_command();
         editor_set_mode(MODE_NORMAL);
-        editor_process_command(cmd);
+        editor_process_command();
         return;
     }
 
@@ -1285,14 +1278,12 @@ void editor_init(char *filename){
     I->status_message = buff_create();
 
     // Read command
-    I->read_buff = malloc(sizeof(HEBuff));
+    I->read_buff = buff_create();
 
     // Write
     I->last_byte = (byte_t){0,0};
     I->last_write_offset = -1;
-    I->repeat_buff = malloc(sizeof(HEBuff));
-    I->repeat_buff->content = malloc(128);
-    I->repeat_buff->capacity = 128;
+    I->repeat_buff = buff_create();
     I->repeat = 1;
 
     I->action_list = action_list_init();

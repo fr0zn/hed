@@ -7,18 +7,18 @@
 
 
 void action_list_print(HEActionList* list) {
-	HEAction* node = list->first;
-	if (node == NULL) {
-		fprintf(stderr, "Nothing to delete, head is null\n");
-		return;
-	}
-	while (node != NULL) {
-		fprintf(stderr, "(%d, %s, %02x-%02x) -> ", node->offset, action_names[node->type], node->b.o, node->b.c);
-		node = node->next;
-		if (node == NULL) {
-			fprintf(stderr, "END\n");
-		}
-	}
+    HEAction* node = list->first;
+    if (node == NULL) {
+        fprintf(stderr, "Nothing to delete, head is null\n");
+        return;
+    }
+    while (node != NULL) {
+        fprintf(stderr, "(%d, %s, %02x-%02x) -> ", node->offset, action_names[node->type], node->b.o, node->b.c);
+        node = node->next;
+        if (node == NULL) {
+            fprintf(stderr, "END\n");
+        }
+    }
 }
 
 void action_add(HEActionList *list, enum action_type type, unsigned int offset, unsigned char o, unsigned char c){

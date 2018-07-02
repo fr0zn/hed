@@ -2,38 +2,29 @@
 #define HED_BUFF_H
 
 #include <stdlib.h>
+#include <hed_types.h>
 
-#define HEBUFF_DEFAULT_CAPACITY 1024
+#define HEDBUFF_DEFAULT_CAPACITY 1024
 
-// HEBuff stores the content to be desplayed on the screen on redrawing, one
-// single buffer is used in order to prevent flickering
-typedef struct {
-
-    char *content; // Buffer content
-    unsigned int len; // Current length of filled data
-    unsigned int capacity; // The max allowed data for the current allocation
-
-} HEBuff;
-
-// Creates and initializes to 0's a new HEBuff
-HEBuff* buff_create();
+// Creates and initializes to 0's a new HEDBuff
+HEDBuff* buff_create();
 
 // Deallocates the memory including the object itself
-void buff_remove(HEBuff* buff);
+void buff_remove(HEDBuff* buff);
 
 // Deletes the last character
-void buff_delete_last(HEBuff* buff);
+void buff_delete_last(HEDBuff* buff);
 
 // Clear the buffer
-void buff_clear(HEBuff* buff);
+void buff_clear(HEDBuff* buff);
 
 // Clear the buffer only setting len
-void buff_clear_dirty(HEBuff* buff);
+void buff_clear_dirty(HEDBuff* buff);
 
 // Add `to_append` to the buffer
-void buff_append(HEBuff* buff, const char* to_append, size_t len);
+void buff_append(HEDBuff* buff, const char* to_append, size_t len);
 
 // Add formated string `fmt` to the buffer using va_args
-void buff_vappendf(HEBuff* buff, const char* fmt, ...);
+void buff_vappendf(HEDBuff* buff, const char* fmt, ...);
 
 #endif

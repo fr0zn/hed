@@ -6,10 +6,10 @@
 
 #include <hed_buff.h>
 
-// Allocate and initialize a HEBuff with default size data
-HEBuff* buff_create(){
+// Allocate and initialize a HEDBuff with default size data
+HEDBuff* buff_create(){
 
-    HEBuff *buff = malloc(sizeof(HEBuff));
+    HEDBuff *buff = malloc(sizeof(HEDBuff));
 
     if(buff){
         buff->content  = malloc(HEBUFF_DEFAULT_CAPACITY);
@@ -23,7 +23,7 @@ HEBuff* buff_create(){
     }
 }
 
-void buff_remove(HEBuff* buff){
+void buff_remove(HEDBuff* buff){
     if(buff->content != NULL){
         free(buff->content);
     }
@@ -34,7 +34,7 @@ void buff_remove(HEBuff* buff){
 
 // Sets the length to 0 in order to start appending data from the beggining of
 // the buffer again. The data is not cleared, only the first byte set to 0
-void buff_clear_dirty(HEBuff* buff){
+void buff_clear_dirty(HEDBuff* buff){
     buff->content[0] = 0;
     buff->len = 0;
 }
@@ -42,30 +42,30 @@ void buff_clear_dirty(HEBuff* buff){
 // Sets the length to 0 in order to start appending data from the beggining of
 // the buffer again. The capacity will stay the same and the buffer content
 // pointer will be the same also. The old data is set to 0
-void buff_clear(HEBuff* buff){
+void buff_clear(HEDBuff* buff){
     //memset(buff->content, 0, buff->len + 1);
     //buff->len = 0;
     buff_clear_dirty(buff);
 }
 
-void buff_delete_last(HEBuff* buff){
+void buff_delete_last(HEDBuff* buff){
     if(buff->len > 0 ){
         buff->content[buff->len-1] = 0;
         buff->len--;
     }
 }
 
-// Appends `to_append` to the HEBuff content and reallocates in case is needed
-void buff_append(HEBuff* buff, const char* to_append, size_t len){
+// Appends `to_append` to the HEDBuff content and reallocates in case is needed
+void buff_append(HEDBuff* buff, const char* to_append, size_t len){
 
-    // If the HEBuff len exceeds the capacity, reallocate and double the
+    // If the HEDBuff len exceeds the capacity, reallocate and double the
     // capacity
     if( ( buff->len + len + 1 ) >= buff->capacity ){
         buff->capacity += len; // Increment the capacity to fit the data
         buff->capacity *= 2; // Double the size of the capacity
         buff->content = realloc(buff->content, buff->capacity);
         if ( buff->content == NULL ){
-            perror("Unable to realloc HEBuff content");
+            perror("Unable to realloc HEDBuff content");
             exit(1);
         }
     }
@@ -76,7 +76,7 @@ void buff_append(HEBuff* buff, const char* to_append, size_t len){
     buff->content[buff->len] = 0;
 }
 
-void buff_vappendf(HEBuff* buff, const char* fmt, ...){
+void buff_vappendf(HEDBuff* buff, const char* fmt, ...){
 
     char buffer[HEBUFF_DEFAULT_CAPACITY];
     va_list ap;

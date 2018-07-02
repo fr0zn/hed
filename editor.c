@@ -510,14 +510,14 @@ void editor_render_content(HEBuff* buff){
 void editor_goto(unsigned int x, unsigned int y){
     char buffer[32];
     int w = sprintf(buffer, "\x1b[%d;%dH", y, x);
-    term_print(buffer, w);
+    term_print_data(buffer, w);
 }
 
 void editor_render_command(char *command){
     char buffer[32];
     editor_goto(I->screen_cols-10, I->screen_rows);
     int w = sprintf(buffer, "%s", command);
-    term_print(buffer, w);
+    term_print_data(buffer, w);
 }
 
 
@@ -638,7 +638,7 @@ void editor_refresh_screen(){
     buff_vappendf(I->buff, "\x1b[%d;1H", I->screen_rows);
 
     // Write the buffer on the screen
-    term_draw(buff);
+    term_print_data(buff->content, buff->len);
 }
 
 void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
@@ -1076,9 +1076,9 @@ void editor_process_command(char *command){
 
 char* editor_read_string(char *prompt){
     char *str;
-    term_print("\x1b[?25h", 6); // Show cursor
+    term_print_data("\x1b[?25h", 6); // Show cursor
     str = readline(prompt);
-    term_print("\x1b[?25l", 6); // Hide cursor
+    term_print_data("\x1b[?25l", 6); // Hide cursor
     return str;
 }
 
@@ -1258,20 +1258,20 @@ void editor_process_keypress(){
 void editor_resize(){
 
     // Get new terminal size
-    term_get_size(I);
+    term_get_size(&I->screen_rows, &I->screen_cols);
     // New bytes per line
     editor_calculate_bytes_per_line();
     // Redraw the screen
-    term_clear();
+    term_clear_screen();
     editor_refresh_screen();
 }
 
 void editor_init(char *filename){
     I = malloc(sizeof(HEState));
     // Gets the terminal size
-    term_get_size(I);
+    term_get_size(&I->screen_rows, &I->screen_cols);
     // Enter in raw mode
-    term_enable_raw(I);
+    term_enable_raw(&I->term_original);
     // Initialize the screen buffer
     I->buff = buff_create();
 
@@ -1315,7 +1315,7 @@ void editor_init(char *filename){
     // New bytes per line
     editor_calculate_bytes_per_line();
 
-    term_clear();
+    term_clear_screen();
     // Register the resize handler
     signal(SIGWINCH, editor_resize);
     // Register the exit statement
@@ -1347,11 +1347,10 @@ void editor_exit(){
             free(I->action_list);
         }
 
-        // Clear the screen
-        term_clear();
+        term_clear_screen();
 
         // Exit raw mode
-        term_disable_raw(I);
+        term_disable_raw(&I->term_original);
 
         free(I);
     }

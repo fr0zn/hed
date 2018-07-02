@@ -22,7 +22,7 @@ char* readline(const char *prompt ){
     }
 
     // Print the prompt
-    term_print(prompt, strlen(prompt));
+    term_print_data(prompt, strlen(prompt));
 
     while(c != KEY_ENTER){
         // Read 1 byte
@@ -32,9 +32,9 @@ char* readline(const char *prompt ){
             if(buff->len > 0){
                 buff_delete_last(buff);
                 // Move back, writting an space
-                term_print("\x1b[1D",4);
-                term_print(" ",1);
-                term_print("\x1b[1D",4);
+                term_print_data("\x1b[1D",4);
+                term_print_data(" ",1);
+                term_print_data("\x1b[1D",4);
             }
             continue;
         }
@@ -45,7 +45,7 @@ char* readline(const char *prompt ){
         }
         if(isprint(c)){
             buff_append(buff, &c, 1);
-            term_print(&c,1);
+            term_print_data(&c,1);
         }
     }
 

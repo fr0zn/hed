@@ -1,7 +1,7 @@
 #ifndef HED_READ_H
 #define HED_READ_H
 
-#include <hed_types.h>
+#include <hed_buff.h>
 
 /**
  * @brief      Reads a key pressed by the user.

@@ -6,6 +6,17 @@
 
 #define HEDBUFF_DEFAULT_CAPACITY 1024
 
+/**
+ * { item_description }
+ */
+typedef struct {
+    char *content;
+    // Current length of filled data
+    unsigned int len;
+    // The max allowed data for the current allocation
+    unsigned int capacity;
+} HEDBuff;
+
 // Creates and initializes to 0's a new HEDBuff
 HEDBuff* buff_create();
 

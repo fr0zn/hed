@@ -12,9 +12,9 @@ HEDBuff* buff_create(){
     HEDBuff *buff = malloc(sizeof(HEDBuff));
 
     if(buff){
-        buff->content  = malloc(HEBUFF_DEFAULT_CAPACITY);
+        buff->content  = malloc(HEDBUFF_DEFAULT_CAPACITY);
         buff->len      = 0;
-        buff->capacity = HEBUFF_DEFAULT_CAPACITY;
+        buff->capacity = HEDBUFF_DEFAULT_CAPACITY;
         // Make sure empty string of len 0
         buff->content[0] = 0;
         return buff;
@@ -78,10 +78,10 @@ void buff_append(HEDBuff* buff, const char* to_append, size_t len){
 
 void buff_vappendf(HEDBuff* buff, const char* fmt, ...){
 
-    char buffer[HEBUFF_DEFAULT_CAPACITY];
+    char buffer[HEDBUFF_DEFAULT_CAPACITY];
     va_list ap;
     va_start(ap, fmt);
-    int len = vsnprintf(buffer, HEBUFF_DEFAULT_CAPACITY, fmt, ap);
+    int len = vsnprintf(buffer, HEDBUFF_DEFAULT_CAPACITY, fmt, ap);
     va_end(ap);
 
     buff_append(buff, buffer, len);

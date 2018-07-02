@@ -1,12 +1,13 @@
-#ifndef HE_EDITOR_H
-#define HE_EDITOR_H
+#ifndef HED_EDITOR_H
+#define HED_EDITOR_H
 
-#include "hed_buff.h"
-#include "hed_utils.h"
-#include "hed_action.h"
-#include "hed_grammar.h"
 #include <termios.h>
 #include <stdbool.h>
+
+#include <hed_buff.h>
+#include <hed_utils.h>
+#include <hed_action.h>
+#include <hed_grammar.h>
 
 enum editor_mode {
     MODE_NORMAL       = 0x001,

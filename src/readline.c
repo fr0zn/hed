@@ -1,11 +1,12 @@
-#include "hed_readline.h"
-#include "hed_buff.h"
-#include "hed_utils.h"
-#include "hed_term.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+
+#include <hed_readline.h>
+#include <hed_buff.h>
+#include <hed_utils.h>
+#include <hed_term.h>
 
 // Buffer for the readline
 static HEBuff *buff = NULL;

@@ -1,5 +1,6 @@
-#include "hed_editor.h"
 #include <stdio.h>
+
+#include <hed_editor.h>
 
 int main(int argc, char *argv[]){
 

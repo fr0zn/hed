@@ -1,5 +1,5 @@
-#ifndef HE_GRAMMAR_H
-#define HE_GRAMMAR_H
+#ifndef HED_GRAMMAR_H
+#define HED_GRAMMAR_H
 
 #include <stdbool.h>
 #include <stdint.h>

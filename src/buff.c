@@ -1,9 +1,10 @@
-#include "hed_buff.h"
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+
+#include <hed_buff.h>
 
 // Allocate and initialize a HEBuff with default size data
 HEBuff* buff_create(){

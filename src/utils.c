@@ -1,6 +1,7 @@
-#include "hed_utils.h"
 #include <unistd.h>
-#include "hed_types.h"
+
+#include <hed_types.h>
+#include <hed_utils.h>
 
 int utils_read_key(){
     char c;

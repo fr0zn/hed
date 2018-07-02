@@ -1,10 +1,3 @@
-#include "hed_editor.h"
-#include "hed_term.h"
-#include "hed_utils.h"
-#include "hed_action.h"
-#include "hed_grammar.h"
-#include "hed_readline.h"
-
 #include <stdio.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -12,6 +5,13 @@
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
+
+#include <hed_editor.h>
+#include <hed_term.h>
+#include <hed_utils.h>
+#include <hed_action.h>
+#include <hed_grammar.h>
+#include <hed_readline.h>
 
 
 static HEState *hestate = NULL;

@@ -1,9 +1,10 @@
-#ifndef HE_TERM_H
-#define HE_TERM_H
+#ifndef HED_TERM_H
+#define HED_TERM_H
 
-#include "hed_editor.h"
-#include "hed_buff.h"
 #include <unistd.h>
+
+#include <hed_editor.h>
+#include <hed_buff.h>
 
 /**
  * @brief      Gets the current terminal size

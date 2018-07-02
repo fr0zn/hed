@@ -1,8 +1,9 @@
-#include "hed_grammar.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+
+#include <hed_grammar.h>
 
 #define GRAMMAR_LIST_DEFAULT_SIZE 32
 

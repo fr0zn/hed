@@ -1,8 +1,9 @@
-#include "hed_action.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdarg.h>
+
+#include <hed_action.h>
 
 
 void action_list_print(HEActionList* list) {

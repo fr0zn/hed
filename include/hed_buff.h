@@ -1,5 +1,5 @@
-#ifndef HE_BUFF_H
-#define HE_BUFF_H
+#ifndef HED_BUFF_H
+#define HED_BUFF_H
 
 #include <stdlib.h>
 

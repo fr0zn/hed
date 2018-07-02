@@ -1,5 +1,5 @@
-#ifndef HE_UTILS_H
-#define HE_UTILS_H
+#ifndef HED_UTILS_H
+#define HED_UTILS_H
 
 #include <stdint.h>
 

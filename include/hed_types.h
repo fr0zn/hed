@@ -3,8 +3,12 @@
 
 #include <stdint.h>
 
-// Key enumeration, returned by utils_read_key().
-enum key_codes {
+/**
+ * Enum of the ANSI Character Escape sequences
+ * The values for an specific keyboard can be optained with the 
+ * python script `helpers/key_code.py`
+ */
+typedef enum {
     KEY_NULL      = 0,
     KEY_CTRL_C    = 0x03,
     KEY_CTRL_D    = 0x04,
@@ -18,17 +22,25 @@ enum key_codes {
     KEY_ENTER     = 0x0d,
     KEY_BACKSPACE = 0x7f,
 
-    KEY_UP      = 0x400,// [A
-    KEY_DOWN,           // [B
-    KEY_RIGHT,          // [C
-    KEY_LEFT,           // [D
-    KEY_DEL,            // . = 1b, [ = 5b, 3 = 33, ~ = 7e,
-    KEY_HOME,           // [H
-    KEY_END,            // [F
-    KEY_PAGEUP,         // ??
-    KEY_PAGEDOWN,       // ??
-};
+    /**
+     * The following values are manually defined in order to represent
+     * escaped key sequence of the corresponding name key.
+     */
 
+    KEY_UP      = 0x400,
+    KEY_DOWN,
+    KEY_RIGHT,
+    KEY_LEFT,
+    KEY_DEL,
+    KEY_HOME,
+    KEY_END, 
+    KEY_PAGEUP,
+    KEY_PAGEDOWN,
+}KEY_CODE;
+
+/**
+ * Defines a byte type used by HeD
+ */
 typedef struct {
     uint8_t o; // Original
     uint8_t c; // Current

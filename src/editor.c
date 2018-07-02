@@ -11,7 +11,7 @@
 #include <hed_utils.h>
 #include <hed_action.h>
 #include <hed_grammar.h>
-#include <hed_readline.h>
+#include <hed_read.h>
 
 
 static HEState *hestate = NULL;
@@ -688,9 +688,9 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         old_byte = I->content[offset].c;
 
         // Less significative first
-        new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
+        new_byte = ((old_byte << 4) & 0xf0) | utils_hex2int(c) ;
         // Most significative first
-        //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+        //new_byte = ((old_byte) & 0xf0) | utils_hex2int(c) ;
 
         // Modify the last action to reflect the 2nd nibble
         I->action_list->last->b.c = new_byte;
@@ -705,9 +705,9 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         old_byte = I->content[offset].c;
 
         // Less significative first
-        new_byte = (old_byte & 0xf0) | utils_atoh(c) ;
+        new_byte = (old_byte & 0xf0) | utils_hex2int(c) ;
         // Most significative first
-        //new_byte = (old_byte & 0x0f) | (utils_atoh(c) << 4) ;
+        //new_byte = (old_byte & 0x0f) | (utils_hex2int(c) << 4) ;
 
         editor_write_byte_offset(new_byte, offset);
 
@@ -759,9 +759,9 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         old_byte = I->content[offset].c;
 
         // Less significative first
-        new_byte = ((old_byte << 4) & 0xf0) | utils_atoh(c) ;
+        new_byte = ((old_byte << 4) & 0xf0) | utils_hex2int(c) ;
         // Most significative first
-        //new_byte = ((old_byte) & 0xf0) | utils_atoh(c) ;
+        //new_byte = ((old_byte) & 0xf0) | utils_hex2int(c) ;
 
         editor_write_byte_offset(new_byte, offset);
 
@@ -780,7 +780,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
         I->content_length++;
 
-        new_byte = utils_atoh(c) & 0xf;
+        new_byte = utils_hex2int(c) & 0xf;
 
         // Make sure to set the original to 0 on insert
         I->content[offset].o = 0;
@@ -898,7 +898,7 @@ void editor_replace_cursor_repeat(){
 
 void editor_replace_visual(){
 
-    int c = utils_read_key();
+    int c = read_key();
 
     // No need to scroll
     editor_cursor_offset(I->selection.start);
@@ -909,7 +909,7 @@ void editor_replace_visual(){
                 editor_replace_offset(i, c);
             }
         }else{
-            int c2 = utils_read_key();
+            int c2 = read_key();
             if(isxdigit(c2)){
                 for(int i= I->selection.start; i <= I->selection.end; i++){
                     editor_replace_offset(i, c); // First octet
@@ -1077,7 +1077,7 @@ void editor_process_command(char *command){
 char* editor_read_string(char *prompt){
     char *str;
     term_print_data("\x1b[?25h", 6); // Show cursor
-    str = readline(prompt);
+    str = read_line(prompt);
     term_print_data("\x1b[?25l", 6); // Hide cursor
     return str;
 }
@@ -1107,7 +1107,7 @@ void editor_process_keypress(){
     }
 
     // Read first command char
-    c = utils_read_key();
+    c = read_key();
 
     if(I->mode == MODE_NORMAL){
         // TODO: Implement key repeat correctly
@@ -1117,7 +1117,7 @@ void editor_process_keypress(){
                 command[count] = c;
                 command[count+1] = '\0';
                 editor_render_command(command);
-                c = utils_read_key();
+                c = read_key();
                 count++;
             }
 
@@ -1169,7 +1169,7 @@ void editor_process_keypress(){
                 break;
             case 'g':
                 editor_render_command("g");
-                c = utils_read_key();
+                c = read_key();
                 if(c == 'g'){
                     editor_cursor_offset_scroll(0);
                 }
@@ -1221,7 +1221,7 @@ void editor_process_keypress(){
                 command[count] = c;
                 command[count+1] = '\0';
                 editor_render_command(command);
-                c = utils_read_key();
+                c = read_key();
                 count++;
             }
 

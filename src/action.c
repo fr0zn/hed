@@ -13,7 +13,7 @@ void action_list_print(HEActionList* list) {
         return;
     }
     while (node != NULL) {
-        fprintf(stderr, "(%d, %s, %02x-%02x) -> ", node->offset, action_names[node->type], node->b.o, node->b.c);
+        fprintf(stderr, "(%d, %s, %02x-%02x) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value );
         node = node->next;
         if (node == NULL) {
             fprintf(stderr, "END\n");
@@ -21,12 +21,12 @@ void action_list_print(HEActionList* list) {
     }
 }
 
-void action_add(HEActionList *list, enum action_type type, unsigned int offset, unsigned char o, unsigned char c){
+void action_add(HEActionList *list, enum action_type type, unsigned int offset, HEDByte byte){
 
     HEAction *action = malloc(sizeof(HEAction));
     action->type   = type;
     action->offset = offset;
-    action->b      = (HEDByte){o,c,0};
+    action->b      = byte;
     action->next   = NULL; // We are the last
     action->prev   = NULL; // In case we are the first
 
@@ -66,6 +66,8 @@ HEActionList* action_list_init(){
     a_list->first   = NULL;
     a_list->last    = NULL;
     a_list->current = NULL;
-    action_add(a_list, ACTION_BASE, 0, 0, 0); // Add one base action
+
+    action_add(a_list, ACTION_BASE, 0, (HEDByte){0,0,0}); // Add one base action
+
     return a_list;
 }

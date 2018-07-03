@@ -68,7 +68,7 @@ void editor_open_file(char *filename){
     }
 
     // Top byte (original)
-    I->content = malloc(statbuf.st_size*sizeof(byte_t));
+    I->content = malloc(statbuf.st_size*sizeof(HEDByte));
 
     I->file_name = malloc(strlen(filename));
     strcpy(I->file_name, filename);
@@ -78,8 +78,8 @@ void editor_open_file(char *filename){
     uint8_t c; // Single c read
     for(int i = 0; i < statbuf.st_size; i++){
         fread(&c, 1, 1, fp);
-        I->content[i].o = c;
-        I->content[i].c = c;
+        I->content[i].o.value = c;
+        I->content[i].c.value = c;
         I->content[i].g = -1;
     }
 
@@ -118,7 +118,7 @@ void editor_write_file(){
 
 void editor_render_ascii(int row, unsigned int start, unsigned int len){
 
-    byte_t *c;
+    HEDByte *c;
     HEDBuff* buff = I->buff;
     int offset = start;
 
@@ -143,12 +143,12 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
             }
         }
 
-        if(c->c != c->o){
+        if(c->c.value != c->o.value){
             buff_append(buff, "\x1b[31m", 5);
         }
 
-        if(isprint(c->c)){
-            buff_vappendf(buff, "%c", c->c);
+        if(isprint(c->c.value)){
+            buff_vappendf(buff, "%c", c->c.value);
         }else{
             buff_append(buff, ".", 1);
         }
@@ -439,10 +439,10 @@ void editor_render_content(HEDBuff* buff){
 
             // Write the value on the screen (HEDBuff)
             // If the value is changed
-            if(I->content[offset].c != I->content[offset].o){
-                buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c & 0xff);
+            if(I->content[offset].c.value != I->content[offset].o.value){
+                buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c.value);
             }else{
-                buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c & 0xff);
+                buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c.value);
             }
 
         }
@@ -643,7 +643,7 @@ void editor_refresh_screen(){
 
 void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
 
-    I->content[offset].c = new_byte;
+    I->content[offset].c.value = new_byte;
 }
 
 void editor_write_cursor(unsigned char new_byte){
@@ -665,7 +665,6 @@ void editor_prepare_write_repeat(char ch){
 
 void editor_replace_offset(unsigned int offset, unsigned char c){
 
-    char new_byte = 0;
     char old_byte = 0;
 
     if(offset >= I->content_length){
@@ -676,7 +675,7 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
 
     if(I->in_ascii){
         // Create the action
-        action_add(I->action_list, ACTION_REPLACE, offset, I->content[offset].c, c);
+        action_add(I->action_list, ACTION_REPLACE, offset, I->content[offset].c.value, c);
         editor_write_byte_offset(c, offset);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
@@ -685,36 +684,32 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
     // Second octet
     if(I->last_write_offset == offset){
         // One octet already written in this position
-        old_byte = I->content[offset].c;
+        old_byte = I->content[offset].c.value;
 
         // Less significative first
-        new_byte = ((old_byte << 4) & 0xf0) | utils_hex2int(c) ;
+        //I->content[offset].c.nibble.top = utils_hex2int(c);
         // Most significative first
-        //new_byte = ((old_byte) & 0xf0) | utils_hex2int(c) ;
+        I->content[offset].c.nibble.bottom = utils_hex2int(c);
 
         // Modify the last action to reflect the 2nd nibble
-        I->action_list->last->b.c = new_byte;
-
-        editor_write_byte_offset(new_byte, offset);
+        I->action_list->last->b.c.value = I->content[offset].c.value;
 
         editor_move_cursor(KEY_RIGHT, 1);
 
         I->last_write_offset = -1;
     }else{
 
-        old_byte = I->content[offset].c;
+        old_byte = I->content[offset].c.value;
 
         // Less significative first
-        new_byte = (old_byte & 0xf0) | utils_hex2int(c) ;
+        //I->content[offset].c.nibble.bottom = utils_hex2int(c);
         // Most significative first
-        //new_byte = (old_byte & 0x0f) | (utils_hex2int(c) << 4) ;
-
-        editor_write_byte_offset(new_byte, offset);
+        I->content[offset].c.nibble.top = utils_hex2int(c);
 
         I->last_write_offset = offset;
 
         // Create the action
-        action_add(I->action_list, ACTION_REPLACE, offset, old_byte, I->content[offset].c);
+        action_add(I->action_list, ACTION_REPLACE, offset, old_byte, I->content[offset].c.value);
     }
 
 }
@@ -738,13 +733,15 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
     I->dirty = true;
 
     if(I->in_ascii){
-        I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
-        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+        I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
+        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
         I->content_length++;
 
         // Make sure to set the original to 0 on insert
-        I->content[offset].o = 0;
-        editor_write_byte_offset(c, offset);
+        I->content[offset].o.value = 0;
+
+        // Less significative first
+        I->content[offset].c.value = utils_hex2int(c);
 
         // Create the action
         action_add(I->action_list, ACTION_INSERT, offset, 0, c);
@@ -756,17 +753,16 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
     if(I->last_write_offset == offset){
 
         // One octet already written in this position
-        old_byte = I->content[offset].c;
+        old_byte = I->content[offset].c.value;
 
         // Less significative first
-        new_byte = ((old_byte << 4) & 0xf0) | utils_hex2int(c) ;
+        I->content[offset].c.nibble.top = I->content[offset].c.nibble.bottom ;
+        I->content[offset].c.nibble.bottom = utils_hex2int(c);
         // Most significative first
-        //new_byte = ((old_byte) & 0xf0) | utils_hex2int(c) ;
-
-        editor_write_byte_offset(new_byte, offset);
+        //I->content[offset].c.nibble.bottom = utils_hex2int(c);
 
         // Modify the last action to reflect the 2nd nibble
-        I->action_list->last->b.c = new_byte;
+        I->action_list->last->b.c.value = I->content[offset].c.value;
 
         editor_move_cursor(KEY_RIGHT, 1);
 
@@ -776,15 +772,20 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
     // First octet
         // Increase allocation by one byte_t
         // TODO: only if not space already
-        I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
-        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+        I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
+        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
         I->content_length++;
 
-        new_byte = utils_hex2int(c) & 0xf;
+        new_byte = utils_hex2int(c);
 
-        // Make sure to set the original to 0 on insert
-        I->content[offset].o = 0;
-        editor_write_byte_offset(new_byte, offset);
+        // Make sure to set the original to 0 and on insert
+        I->content[offset].o.value = 0;
+        I->content[offset].c.value = 0;
+
+        // Less significative first
+        I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        // Most significative first
+        //I->content[offset].c.nibble.top = new_byte;
 
         I->last_write_offset = offset;
 
@@ -813,29 +814,29 @@ void editor_insert_cursor_repeat(){
 }
 
 void editor_undo_insert_offset(unsigned int offset){
-    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
-    I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
+    I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
     I->content_length--;
 }
 
-void editor_redo_insert_offset(unsigned int offset, byte_t b){
-    I->content = realloc(I->content, (I->content_length + 1)*sizeof(byte_t));
-    memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(byte_t));
+void editor_redo_insert_offset(unsigned int offset, HEDByte b){
+    I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
+    memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
     I->content[offset].c = b.c;
     I->content[offset].o = b.o;
     I->content_length++;
 }
 
-void editor_undo_delete_offset(unsigned int offset, byte_t b){
+void editor_undo_delete_offset(unsigned int offset, HEDByte b){
     editor_redo_insert_offset(offset, b);
 }
 
 void editor_delete_offset(unsigned int offset) {
     if(I->content_length > 0){
-        unsigned char old_byte = I->content[offset].c;
-        unsigned char original_byte = I->content[offset].o;
-        memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
-        I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+        unsigned char old_byte = I->content[offset].c.value;
+        unsigned char original_byte = I->content[offset].o.value;
+        memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
+        I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
         I->content_length--;
         action_add(I->action_list, ACTION_DELETE, offset, original_byte, old_byte);
     }
@@ -870,14 +871,14 @@ void editor_reset_write_repeat(){
     I->last_write_offset = -1;
 }
 
-void editor_redo_delete_offset(unsigned int offset, byte_t b){
-    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(byte_t));
-    I->content = realloc(I->content, (I->content_length - 1)*sizeof(byte_t));
+void editor_redo_delete_offset(unsigned int offset, HEDByte b){
+    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
+    I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
     I->content_length--;
     editor_cursor_offset(offset);
 }
 
-void editor_undo_redo_replace_offset(unsigned int offset, byte_t b){
+void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
     HEActionList *list = I->action_list;
     // Swap original and current in action
     list->current->b.o = I->content[offset].c;
@@ -961,7 +962,7 @@ void editor_redo(){
         list->current = list->current->next;
 
         unsigned int offset = list->current->offset;
-        byte_t b = list->current->b;
+        HEDByte b = list->current->b;
 
         switch(list->current->type){
             case ACTION_BASE:
@@ -992,7 +993,7 @@ void editor_undo(){
     for(int i = 0; i< I->repeat; i++){
 
         unsigned int offset = list->current->offset;
-        byte_t b = list->current->b;
+        HEDByte b = list->current->b;
 
         switch(list->current->type){
             case ACTION_BASE:

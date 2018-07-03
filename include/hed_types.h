@@ -39,13 +39,32 @@ typedef enum {
 }KEY_CODE;
 
 /**
- * Defines a byte type used by HeD
+ * Defines a byte type of size 1 byte in memory with nibble access
+ * Example:
+ *        byte_t b;
+ *        b.nibble.top = 4;
+ *        b.nibble.bottom = 6;
+ *
+ *        printf("0x%x", b.byte); // Outputs 0x46
+ */
+typedef union {
+    struct {
+        unsigned char bottom : 4;
+        unsigned char top : 4;
+    }nibble;
+
+    unsigned char value;
+} byte_t;
+
+/**
+ * Defines a byte type used by HeD editor
+ * <details>
  */
 typedef struct {
-    uint8_t o; // Original
-    uint8_t c; // Current
+    byte_t o; // Original
+    byte_t c; // Current
     int g; // Grammar index
-} byte_t;
+} HEDByte;
 
 enum action_type {
     ACTION_BASE, // Used as the base of actions
@@ -70,7 +89,7 @@ typedef struct action_t{
     enum action_type type;
     unsigned int offset;
 
-    byte_t b; // Changed/modified byte (original)
+    HEDByte b; // Changed/modified byte (original)
 
 }HEAction;
 

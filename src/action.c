@@ -26,7 +26,7 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset, 
     HEAction *action = malloc(sizeof(HEAction));
     action->type   = type;
     action->offset = offset;
-    action->b      = (byte_t){o,c};
+    action->b      = (HEDByte){o,c,0};
     action->next   = NULL; // We are the last
     action->prev   = NULL; // In case we are the first
 

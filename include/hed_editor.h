@@ -73,7 +73,7 @@ typedef struct {
     byte_t last_byte;
     unsigned int last_write_offset;
 
-    byte_t *content;
+    HEDByte *content;
     bool read_only;
 
     bool dirty; // If changes made

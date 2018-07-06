@@ -20,7 +20,10 @@ void action_list_print(HEActionList* list) {
         return;
     }
     while (node != NULL) {
-        fprintf(stderr, "(%d, %s, %02x-%02x) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value );
+        if (node == list->current) {
+            fprintf(stderr, "CURRENT: ");
+        }
+        fprintf(stderr, "(%d, %s, %02x-%02x [%d]) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value, node->repeat );
         node = node->next;
         if (node == NULL) {
             fprintf(stderr, "END\n");
@@ -28,7 +31,9 @@ void action_list_print(HEActionList* list) {
     }
 }
 
-void action_add(HEActionList *list, enum action_type type, unsigned int offset, HEDByte byte){
+void action_add(HEActionList *list, enum action_type type, unsigned int offset,
+    HEDByte byte, int repeat){
+
 
     HEAction *action = malloc(sizeof(HEAction));
     action->type   = type;
@@ -36,6 +41,7 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset, 
     action->b      = byte;
     action->next   = NULL; // We are the last
     action->prev   = NULL; // In case we are the first
+    action->repeat = repeat;
 
     // We are adding a new action after undo, so remove all actions
     // from the last one until we hit the current
@@ -65,7 +71,6 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset, 
     list->current = action;
 
     //action_list_print(list);
-
 }
 
 HEActionList* action_list_init(){
@@ -74,7 +79,7 @@ HEActionList* action_list_init(){
     a_list->last    = NULL;
     a_list->current = NULL;
 
-    action_add(a_list, ACTION_BASE, 0, (HEDByte){{0},{0},false, 0}); // Add one base action
+    action_add(a_list, ACTION_BASE, 0, (HEDByte){{0},{0},false, 0}, 0); // Add one base action
 
     return a_list;
 }

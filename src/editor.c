@@ -444,10 +444,6 @@ void editor_define_grammar_cursor(){
     editor_define_grammar_offset(offset, offset);
 }
 
-void editor_define_grammar_visual(){
-    editor_define_grammar_offset(I->selection.start, I->selection.end);
-}
-
 void editor_render_content(HEDBuff* buff){
 
     unsigned int line_chars = 0;
@@ -683,6 +679,11 @@ void editor_set_mode(enum editor_mode mode){
     }
 }
 
+void editor_define_grammar_visual(){
+    editor_define_grammar_offset(I->selection.start, I->selection.end);
+    editor_set_mode(MODE_NORMAL);
+}
+
 void editor_render_ruler_left(HEDBuff* buff){
     // Left ruler
     // Start writting the text now
@@ -857,7 +858,7 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
                                {c},
                                I->content[offset].is_original,
                                I->content[offset].g};
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte);
+        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
         editor_write_byte_offset(c, offset);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
@@ -900,7 +901,7 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
                                 {I->content[offset].c.value},
                                 old_byte.is_original,
                                 I->content[offset].g};
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte);
+        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
     }
 
 }
@@ -912,9 +913,21 @@ void editor_replace_cursor(char c){
 
 }
 
+void editor_replace_repeat_last(){
+    I->repeat = I->repeat_buff->len;
+    if (!I->in_ascii) {
+        I->repeat /= 2;
+    }
+    for(int c=0; c < I->repeat_buff->len; c++){
+        editor_replace_cursor(I->repeat_buff->content[c]);
+    }
+
+}
+
+
 void editor_replace_cursor_repeat(){
 
-    for(int r=0; r < I->repeat; r++){
+    for(int r=0; r < I->repeat - 1; r++){
         for(int c=0; c < I->repeat_buff->len; c++){
             editor_replace_cursor(I->repeat_buff->content[c]);
         }
@@ -924,6 +937,9 @@ void editor_replace_cursor_repeat(){
 void editor_replace_visual(){
 
     int c = read_key();
+
+    // action repeat
+    I->repeat = I->selection.end - I->selection.start + 1;
 
     // No need to scroll
     editor_cursor_offset(I->selection.start);
@@ -981,7 +997,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
         HEDByte action_byte = {{0},{c},false,0};
 
         // Create the action
-        action_add(I->action_list, ACTION_INSERT, offset, action_byte);
+        action_add(I->action_list, ACTION_INSERT, offset, action_byte, I->repeat);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
@@ -1039,9 +1055,9 @@ void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
         }
 
         if (append) {
-            action_add(I->action_list, ACTION_APPEND, offset, action_byte);
+            action_add(I->action_list, ACTION_APPEND, offset, action_byte, I->repeat);
         } else {
-            action_add(I->action_list, ACTION_INSERT, offset, action_byte);
+            action_add(I->action_list, ACTION_INSERT, offset, action_byte, I->repeat);
         }
 
     }
@@ -1059,16 +1075,37 @@ void editor_insert_cursor(char c) {
 
 }
 
+void editor_append_repeat_last() {
+    I->repeat = I->repeat_buff->len;
+    if (!I->in_ascii) {
+        I->repeat /= 2;
+    }
+    for(int c=0; c < I->repeat_buff->len; c++){
+        editor_append_cursor(I->repeat_buff->content[c]);
+    }
+}
+
 void editor_append_cursor_repeat() {
-    for(int r=0; r < I->repeat; r++){
+    for(int r=0; r < I->repeat - 1; r++){
         for(int c=0; c < I->repeat_buff->len; c++){
             editor_append_cursor(I->repeat_buff->content[c]);
         }
     }
 }
 
+void editor_insert_repeat_last() {
+    I->repeat = I->repeat_buff->len;
+    if (!I->in_ascii) {
+        I->repeat /= 2;
+    }
+    for(int c=0; c < I->repeat_buff->len; c++){
+        editor_insert_cursor(I->repeat_buff->content[c]);
+    }
+
+}
+
 void editor_insert_cursor_repeat() {
-    for(int r=0; r < I->repeat; r++){
+    for(int r=0; r < I->repeat - 1; r++){
         for(int c=0; c < I->repeat_buff->len; c++){
             editor_insert_cursor(I->repeat_buff->content[c]);
         }
@@ -1110,7 +1147,7 @@ void editor_delete_offset(unsigned int offset) {
                                 {old_byte.o.value},
                                 old_byte.is_original ,
                                 old_byte.g};
-        action_add(I->action_list, ACTION_DELETE, offset, action_byte);
+        action_add(I->action_list, ACTION_DELETE, offset, action_byte, I->repeat);
         I->content_length--;
     } else {
         editor_set_status(STATUS_WARNING, "File is empty");
@@ -1136,6 +1173,7 @@ void editor_delete_cursor_repeat(){
 }
 
 void editor_delete_visual(){
+    I->repeat = I->selection.end - I->selection.start + 1;
     for(int i= I->selection.start; i <= I->selection.end; i++){
         editor_delete_offset(I->selection.start);
     }
@@ -1177,9 +1215,9 @@ void editor_repeat_last_action(){
 
     switch(list->last->type){
         case ACTION_BASE: break;
-        case ACTION_REPLACE: editor_replace_cursor_repeat(); break;
-        case ACTION_INSERT: editor_insert_cursor_repeat(); break;
-        case ACTION_APPEND: break;
+        case ACTION_REPLACE: editor_replace_repeat_last(); break;
+        case ACTION_INSERT: editor_insert_repeat_last(); break;
+        case ACTION_APPEND: editor_append_repeat_last(); break;
         case ACTION_DELETE: break;
 
     }
@@ -1190,42 +1228,54 @@ void editor_redo(){
 
     HEActionList *list = I->action_list;
 
-    for(int i = 0; i< I->repeat; i++){
-        // If newest change
-        if(list->current->next == NULL){
-            editor_set_status(STATUS_INFO, "Already at newest change");
-            return;
-        }
+    // If newest change
+    if(list->current->next == NULL){
+        editor_set_status(STATUS_INFO, "Already at newest change");
+        return;
+    }
 
+    for(int i = 0; i < I->repeat; i++){
+
+        // Undo multiple actions
         // We start from action base. To redo the last change we have to go to
         // the next action in the list
-        list->current = list->current->next;
+        //list->current = list->current->next;
+        int repeat = list->current->next->repeat;
 
-        unsigned int offset = list->current->offset;
-        HEDByte b = list->current->b;
+        for(int r = 0; r < repeat; r++) {
 
-        switch(list->current->type){
-            case ACTION_BASE:
-                editor_set_status(STATUS_INFO, "Already at newest change");
-                return;
-            case ACTION_REPLACE:
-                // Store modified value in case of undo
-                editor_undo_redo_replace_offset(offset, b);
-                editor_cursor_offset_scroll(offset);
-                break;
-            case ACTION_INSERT:
-                editor_redo_insert_offset(offset, b);
-                editor_cursor_offset_scroll(offset);
-                break;
-            case ACTION_DELETE:
-                editor_redo_delete_offset(offset, b); break;
-            case ACTION_APPEND:
-                editor_redo_insert_offset(offset, b);
-                editor_cursor_offset_scroll(offset + 1);
-                break;
+            list->current = list->current->next;
+            unsigned int offset = list->current->offset;
+            HEDByte b = list->current->b;
+
+            switch(list->current->type){
+                case ACTION_BASE:
+                    editor_set_status(STATUS_INFO, "Already at newest change");
+                    return;
+                case ACTION_REPLACE:
+                    // Store modified value in case of undo
+                    editor_undo_redo_replace_offset(offset, b);
+                    editor_cursor_offset_scroll(offset);
+                    break;
+                case ACTION_INSERT:
+                    editor_redo_insert_offset(offset, b);
+                    editor_cursor_offset_scroll(offset);
+                    break;
+                case ACTION_DELETE:
+                    editor_redo_delete_offset(offset, b); break;
+                case ACTION_APPEND:
+                    editor_redo_insert_offset(offset, b);
+                    editor_cursor_offset_scroll(offset + 1);
+                    break;
+            }
+            // if (list->current->next != NULL){
+            //     list->current = list->current->next;
+            // }
         }
         I->dirty = true;
     }
+
+    //action_list_print(list);
 
 }
 
@@ -1233,39 +1283,52 @@ void editor_undo(){
 
     HEActionList *list = I->action_list;
 
-    for(int i = 0; i< I->repeat; i++){
+    if (list->current->type == ACTION_BASE) {
+        editor_set_status(STATUS_INFO, "Already at oldest change");
+        return;
+    }
 
-        unsigned int offset = list->current->offset;
-        HEDByte b = list->current->b;
+    for(int i = 0; i < I->repeat; i++){
 
-        switch(list->current->type){
-            case ACTION_BASE:
-                editor_set_status(STATUS_INFO, "Already at oldest change");
-                I->dirty = false;
-                return;
-            case ACTION_REPLACE:
-                // Store modified value in case of redo
-                editor_undo_redo_replace_offset(offset, b);
-                editor_cursor_offset_scroll(offset);
-                break;
-            case ACTION_INSERT:
-                editor_undo_insert_offset(offset);
-                editor_cursor_offset_scroll(offset);
-                break;
-            case ACTION_DELETE:
-                editor_undo_delete_offset(offset, b);
-                editor_cursor_offset_scroll(offset);
-                break;
-            case ACTION_APPEND:
-                editor_undo_insert_offset(offset);
-                editor_cursor_offset_scroll(offset - 1);
-                break;
+        // Undo multiple actions
+        int repeat = list->current->repeat;
 
+        for(int r = 0; r < repeat; r++) {
+
+            unsigned int offset = list->current->offset;
+            HEDByte b = list->current->b;
+
+            switch(list->current->type){
+                case ACTION_BASE:
+                    editor_set_status(STATUS_INFO, "Already at oldest change");
+                    I->dirty = false;
+                    return;
+                case ACTION_REPLACE:
+                    // Store modified value in case of redo
+                    editor_undo_redo_replace_offset(offset, b);
+                    editor_cursor_offset_scroll(offset);
+                    break;
+                case ACTION_INSERT:
+                    editor_undo_insert_offset(offset);
+                    editor_cursor_offset_scroll(offset);
+                    break;
+                case ACTION_DELETE:
+                    editor_undo_delete_offset(offset, b);
+                    editor_cursor_offset_scroll(offset);
+                    break;
+                case ACTION_APPEND:
+                    editor_undo_insert_offset(offset);
+                    editor_cursor_offset_scroll(offset - 1);
+                    break;
+
+            }
+
+            list->current = list->current->prev;
         }
-
-        list->current = list->current->prev;
         I->dirty = true;
     }
+
+    //action_list_print(list);
 }
 
 void editor_toggle_cursor(){
@@ -1538,19 +1601,22 @@ void editor_process_keypress(){
 
     // REPLACE, INSERT, CURSOR, APPEND
 
-    if(!isxdigit(c) && c != KEY_ESC) {
-        if (isprint(c)) {
-            editor_set_status(STATUS_WARNING,
-                "\"%c\" is not a valid hex character", c);
+    // if not in ascii check for valid hex
+    if (!I->in_ascii) {
+        if(!isxdigit(c) && c != KEY_ESC) {
+            if (isprint(c)) {
+                editor_set_status(STATUS_WARNING,
+                    "\"%c\" is not a valid hex character", c);
+            }
+            return;
         }
-        return;
     }
 
     if(I->mode == MODE_REPLACE){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             // Already one repeat write
-            I->repeat--;
+            //I->repeat--;
             editor_replace_cursor_repeat();
             editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
@@ -1566,7 +1632,7 @@ void editor_process_keypress(){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             // Already one repeat write
-            I->repeat--;
+            //I->repeat--;
             editor_insert_cursor_repeat();
             editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
@@ -1582,7 +1648,7 @@ void editor_process_keypress(){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             // Already one repeat write
-            I->repeat--;
+            //I->repeat--;
             editor_append_cursor_repeat();
             editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);

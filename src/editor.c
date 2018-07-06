@@ -16,7 +16,7 @@
 
 
 static HEState *g_hestate = NULL;
-static HEDConfig g_config;
+static HEDConfig* g_config;
 // Instance as I
 #define I g_hestate
 
@@ -111,7 +111,6 @@ void editor_open_file(char *filename){
 
 // Opens the file and stores the content
 void editor_write_file(char* name){
-    fprintf(stderr, "%s - %d\n", I->read_buff->content, I->read_buff->len);
     FILE *fp;
     // If we have argument try to save to that file
     if (name != NULL && strlen(name) != 0){
@@ -153,17 +152,37 @@ void editor_write_file(char* name){
     fclose(fp);
 }
 
-int editor_command_set_run(HEDBuff* cmd) {
-    fprintf(stderr, "%s\n", cmd);
+void editor_calculate_bytes_per_line(){
+
+    // Calculate the maximum hex+ascii bytes that fits in the screen size
+    // one byte = 2 chars
+    int bytes_per_line = g_config->bytes_group; // Atleast write one byte group
+    int filled;
+
+    while((bytes_per_line / g_config->bytes_group) < g_config->groups_per_line)
+    {
+        bytes_per_line += g_config->bytes_group;
+        filled = 10 + bytes_per_line * 2
+            + (bytes_per_line/g_config->bytes_group) * PADDING + bytes_per_line;
+        if (filled >= I->screen_cols){
+            bytes_per_line -= g_config->bytes_group;
+            break;
+        }
+
+    }
+
+    I->bytes_per_line = bytes_per_line;
+}
+
+void editor_command_set_run(HEDBuff* cmd) {
     HEDBuff* key = buff_create();
     HEDBuff* value = buff_create();
 
     if (cmd->len > 0){
-        // buff_trim(cmd);
         config_parse_line_key_value(cmd, key, value);
         if (key->len > 0){
-            if (config_update_key_value(&g_config, key, value)) {
-                editor_set_status(STATUS_INFO, "Set %s, to %s",
+            if (config_update_key_value(g_config, key, value) == 1) {
+                editor_set_status(STATUS_INFO, "Set '%s', to '%s'",
                     key->content, value->content);
             } else {
                 editor_set_status(STATUS_ERROR, "Invalid option \"%s\"",
@@ -172,8 +191,11 @@ int editor_command_set_run(HEDBuff* cmd) {
         }
     }
 
+    editor_calculate_bytes_per_line();
+
     buff_remove(key);
     buff_remove(value);
+
 }
 
 int editor_close_file() {
@@ -254,27 +276,6 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
     }
 }
 
-void editor_calculate_bytes_per_line(){
-
-    // Calculate the maximum hex+ascii bytes that fits in the screen size
-    // one byte = 2 chars
-    int bytes_per_line = I->bytes_group; // Atleast write one byte group
-    int filled;
-
-    while((bytes_per_line / I->bytes_group) < I->groups_per_line)
-    {
-        bytes_per_line += I->bytes_group;
-        filled = 10 + bytes_per_line * 2
-            + (bytes_per_line/I->bytes_group) * PADDING + bytes_per_line;
-        if (filled >= I->screen_cols){
-            bytes_per_line -= I->bytes_group;
-            break;
-        }
-
-    }
-
-    I->bytes_per_line = bytes_per_line;
-}
 
 unsigned int editor_offset_at_cursor(){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
@@ -551,7 +552,7 @@ void editor_render_content(HEDBuff* buff){
 
         // Every group, write a separator of len PADDING, unless its the
         // last in line or the last row
-        if((line_bytes % I->bytes_group == 0) &&
+        if((line_bytes % g_config->bytes_group == 0) &&
             (line_bytes != I->bytes_per_line)){
             for(int s=0; s < PADDING; s++){
                 buff_append(buff, " ", 1);
@@ -572,6 +573,7 @@ void editor_render_content(HEDBuff* buff){
             term_set_format_buff(buff, FORMAT_RESET);
             editor_render_ascii(row, line_offset_start, I->bytes_per_line);
             line_chars += I->bytes_per_line; // ascii chars
+            term_clear_line_end_buff(buff);
             buff_append(buff, "\r\n", 2);
         }
     }
@@ -592,6 +594,7 @@ void editor_render_content(HEDBuff* buff){
         term_set_format_buff(buff, FORMAT_RESET);
         // Render ascii
         editor_render_ascii(row, line_offset_start, line_bytes);
+        term_clear_line_end_buff(buff);
     }
 
 
@@ -1341,8 +1344,7 @@ void editor_process_command(){
         case 's':
             if(len > 1) {
                 if(strcmp(command, "set ")) {
-                    char* option_value = &command[4];
-                    editor_command_set_run(command);
+                    editor_command_set_run(I->read_buff);
                     break;
                 }
             }
@@ -1410,9 +1412,9 @@ void editor_process_keypress(){
             case 'l': editor_move_cursor(KEY_RIGHT, I->repeat); break;
 
             case 'w': editor_move_cursor(KEY_RIGHT,
-                I->repeat * I->bytes_group); break;
+                I->repeat * g_config->bytes_group); break;
             case 'b': editor_move_cursor(KEY_LEFT,
-                I->repeat * I->bytes_group); break;
+                I->repeat * g_config->bytes_group); break;
 
             case 'd': editor_define_grammar_cursor(); break;
 
@@ -1497,9 +1499,9 @@ void editor_process_keypress(){
                 case 'd': editor_define_grammar_visual(); break;
 
                 case 'w': editor_move_cursor_visual(KEY_RIGHT,
-                    I->repeat * I->bytes_group); break;
+                    I->repeat * g_config->bytes_group); break;
                 case 'b': editor_move_cursor_visual(KEY_LEFT,
-                    I->repeat * I->bytes_group); break;
+                    I->repeat * g_config->bytes_group); break;
 
                 case 'r': editor_replace_visual(); break;
                 case 'x': editor_delete_visual(); break;
@@ -1617,6 +1619,7 @@ void editor_resize(){
 
 void editor_init(){
     I = malloc(sizeof(HEState));
+    g_config = config_create_default();
     // Gets the terminal size
     term_get_size(&I->screen_rows, &I->screen_cols);
     // Enter in raw mode
@@ -1630,8 +1633,6 @@ void editor_init(){
     I->file_name[0] = 0;
 
     // Set HEState variables
-    I->bytes_group = 2;
-    I->groups_per_line = 8;
     I->scrolled = 0;
 
     // status bar & mode

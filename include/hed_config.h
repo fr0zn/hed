@@ -8,6 +8,8 @@ typedef struct {
 
 #include <hed_buff.h>
 
+HEDConfig* config_create_default();
+
 char* config_open(char* filename);
 
 int numbers_only(const char *s);

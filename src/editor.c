@@ -11,12 +11,14 @@
 #include <hed_utils.h>
 #include <hed_action.h>
 #include <hed_grammar.h>
+#include <hed_config.h>
 #include <hed_read.h>
 
 
-static HEState *hestate = NULL;
+static HEState *g_hestate = NULL;
+static HEDConfig g_config;
 // Instance as I
-#define I hestate
+#define I g_hestate
 
 #define LEN_OFFSET 9
 #define PADDING 1
@@ -75,6 +77,8 @@ void editor_open_file(char *filename){
         return;
 
     }
+
+    I->init_msg = true;
 
     I->content = realloc(I->content, statbuf.st_size*sizeof(HEDByte));
 
@@ -147,6 +151,29 @@ void editor_write_file(char* name){
     I->dirty = false;
 
     fclose(fp);
+}
+
+int editor_command_set_run(HEDBuff* cmd) {
+    fprintf(stderr, "%s\n", cmd);
+    HEDBuff* key = buff_create();
+    HEDBuff* value = buff_create();
+
+    if (cmd->len > 0){
+        // buff_trim(cmd);
+        config_parse_line_key_value(cmd, key, value);
+        if (key->len > 0){
+            if (config_update_key_value(&g_config, key, value)) {
+                editor_set_status(STATUS_INFO, "Set %s, to %s",
+                    key->content, value->content);
+            } else {
+                editor_set_status(STATUS_ERROR, "Invalid option \"%s\"",
+                    key->content);
+            }
+        }
+    }
+
+    buff_remove(key);
+    buff_remove(value);
 }
 
 int editor_close_file() {
@@ -765,6 +792,17 @@ void editor_refresh_screen(){
     editor_render_status(buff);
     editor_render_ruler(buff);
 
+    // Show msg info
+    if (!I->content_length && !I->init_msg) {
+        term_goto_buff(buff, I->screen_rows/2 - 4, I->screen_cols/2 - 5);
+        buff_vappendf(buff, "HED - hex editor");
+        term_goto_buff(buff, I->screen_rows/2 - 2, I->screen_cols/2 - 3);
+        buff_vappendf(buff, "version 0.5");
+        term_goto_buff(buff, I->screen_rows/2 - 1, I->screen_cols/2 - 2);
+        buff_vappendf(buff, "by fr0zn");
+        fflush(stdout);
+    }
+
     // Move to the last line of the screen
     term_goto_buff(buff, I->screen_rows, 1);
 
@@ -923,6 +961,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
     }
 
     I->dirty = true;
+    I->init_msg = true;
 
     if(I->in_ascii){
         I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
@@ -1299,6 +1338,14 @@ void editor_process_command(){
                 }
             }
             break;
+        case 's':
+            if(len > 1) {
+                if(strcmp(command, "set ")) {
+                    char* option_value = &command[4];
+                    editor_command_set_run(command);
+                    break;
+                }
+            }
         default:
         editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
     }

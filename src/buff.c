@@ -92,7 +92,7 @@ void buff_append(HEDBuff* buff, const char* to_append, size_t len) {
 
 // Creates a copy of itself
 HEDBuff* buff_copy(HEDBuff* buff) {
-
+    return NULL;
 }
 
 int buff_vappendf(HEDBuff* buff, const char* fmt, ...) {

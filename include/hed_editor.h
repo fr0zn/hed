@@ -83,6 +83,9 @@ typedef struct {
     bool read_only;
     bool warned_read_only;
 
+    // If the init_msg was shown
+    bool init_msg;
+
     bool dirty; // If changes made
 
     char *file_name; // The name of the file we are working on

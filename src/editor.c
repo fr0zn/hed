@@ -126,7 +126,9 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
     for(int i = 0; i < len; i++){
         // Get byte to write
         offset = start + i;
-        c = &I->content[offset];
+        if(I->content_length > 0) {
+            c = &I->content[offset];
+        }
 
         // Selection
         if(offset >= I->selection.start && offset <= I->selection.end){
@@ -144,15 +146,21 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
             }
         }
 
-        if(c->c.value != c->o.value){
-            buff_append(buff, "\x1b[31m", 5);
-        }
+        if(I->content_length > 0) {
+            if(c->c.value != c->o.value
+                    || !c->is_original){
+                buff_append(buff, "\x1b[31m", 5);
+            }
 
-        if(isprint(c->c.value)){
-            buff_vappendf(buff, "%c", c->c.value);
+            if(isprint(c->c.value)){
+                buff_vappendf(buff, "%c", c->c.value);
+            }else{
+                buff_append(buff, ".", 1);
+            }
         }else{
             buff_append(buff, ".", 1);
         }
+
 
         buff_append(buff, "\x1b[0m", 4);
     }
@@ -317,9 +325,7 @@ void editor_move_cursor(int dir, int amount){
 
 }
 
-void editor_move_cursor_visual(int dir, int amount){
-
-    editor_move_cursor(dir, amount);
+void editor_update_visual_selection(){
 
     unsigned int offset = editor_offset_at_cursor();
 
@@ -338,6 +344,13 @@ void editor_move_cursor_visual(int dir, int amount){
     }else{
         I->selection.end = offset;
     }
+}
+
+void editor_move_cursor_visual(int dir, int amount){
+
+    editor_move_cursor(dir, amount);
+
+    editor_update_visual_selection();
 
 }
 
@@ -669,6 +682,11 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
 
     HEDByte old_byte;
 
+    if (!I->content_length) {
+        editor_set_status(STATUS_WARNING, "File is empty, nothing to replace");
+        return;
+    }
+
     if(offset >= I->content_length){
         return;
     }
@@ -783,9 +801,8 @@ void editor_replace_visual(){
 void editor_insert_offset(unsigned int offset, unsigned char c){
 
     char new_byte = 0;
-    char old_byte = 0;
 
-    if(offset >= I->content_length){
+    if(offset >= I->content_length && I->content_length != 0){
         return;
     }
 
@@ -800,7 +817,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         I->content[offset].o.value = 0;
         I->content[offset].is_original = false;
         // Less significative first
-        I->content[offset].c.value = utils_hex2int(c);
+        I->content[offset].c.value = c;
 
         HEDByte action_byte = {{0},{c},false,0};
 
@@ -812,9 +829,6 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
     // Second octet
     if(I->last_write_offset == offset){
-
-        // One octet already written in this position
-        old_byte = I->content[offset].c.value;
 
         // Less significative first
         I->content[offset].c.nibble.top = I->content[offset].c.nibble.bottom ;
@@ -864,6 +878,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 void editor_insert_cursor(char c){
 
     unsigned int offset = editor_offset_at_cursor();
+    fprintf(stderr, "%d\n", offset);
     editor_insert_offset(offset, c);
 
 }
@@ -881,6 +896,7 @@ void editor_undo_insert_offset(unsigned int offset){
     memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
     I->content_length--;
+    I->dirty = true;
 }
 
 void editor_redo_insert_offset(unsigned int offset, HEDByte b){
@@ -890,25 +906,29 @@ void editor_redo_insert_offset(unsigned int offset, HEDByte b){
     I->content[offset].o = b.o;
     I->content[offset].is_original = b.is_original;
     I->content_length++;
+    I->dirty = true;
 }
 
 void editor_undo_delete_offset(unsigned int offset, HEDByte b){
     editor_redo_insert_offset(offset, b);
+    I->dirty = true;
 }
 
 void editor_delete_offset(unsigned int offset) {
     if(I->content_length > 0){
-        unsigned char old_byte = I->content[offset].c.value;
-        unsigned char original_byte = I->content[offset].o.value;
+        HEDByte old_byte = I->content[offset];
         memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
         I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
-        I->content_length--;
-        HEDByte action_byte = {{original_byte},
-                                {old_byte},
-                                I->content[offset].is_original ,
-                                I->content[offset].g};
+        HEDByte action_byte = {{old_byte.c.value},
+                                {old_byte.o.value},
+                                old_byte.is_original ,
+                                old_byte.g};
         action_add(I->action_list, ACTION_DELETE, offset, action_byte);
+        I->content_length--;
+    } else {
+        editor_set_status(STATUS_WARNING, "File is empty");
     }
+    I->dirty = true;
 }
 
 void editor_delete_cursor(){
@@ -919,6 +939,7 @@ void editor_delete_cursor(){
     }else{
         editor_cursor_offset(offset);
     }
+    I->dirty = true;
 }
 
 void editor_delete_cursor_repeat(){
@@ -933,6 +954,7 @@ void editor_delete_visual(){
     }
     editor_cursor_offset(I->selection.start);
     editor_set_mode(MODE_NORMAL);
+    I->dirty = true;
 }
 
 
@@ -945,6 +967,7 @@ void editor_redo_delete_offset(unsigned int offset, HEDByte b){
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
     I->content_length--;
     editor_cursor_offset(offset);
+    I->dirty = true;
 }
 
 void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
@@ -956,7 +979,7 @@ void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
 
     I->content[offset].c = b.o;
     I->content[offset].is_original = b.is_original;
-
+    I->dirty = true;
 }
 
 
@@ -1010,6 +1033,7 @@ void editor_redo(){
                 editor_redo_delete_offset(offset, b); break;
             case ACTION_APPEND: break;
         }
+        I->dirty = true;
     }
 
 }
@@ -1046,7 +1070,7 @@ void editor_undo(){
         }
 
         list->current = list->current->prev;
-
+        I->dirty = true;
     }
 }
 
@@ -1271,6 +1295,29 @@ void editor_process_keypress(){
 
                 case 'r': editor_replace_visual(); break;
                 case 'x': editor_delete_visual(); break;
+                // EOF
+                case 'G':
+                    if(I->repeat != 1){
+                        editor_cursor_offset_scroll(I->repeat);
+                        editor_update_visual_selection();
+                    }else{
+                        editor_cursor_offset_scroll(I->content_length-1);
+                        editor_update_visual_selection();
+                    }
+                    break;
+                case 'g':
+                    editor_render_command("g");
+                    c = read_key();
+                    if(c == 'g'){
+                        editor_cursor_offset_scroll(0);
+                        editor_update_visual_selection();
+                    }
+                    break;
+                // Start of line
+                case '0': I->cursor_x = 0; editor_update_visual_selection(); break;
+                // End of line
+                case '$': editor_move_cursor(KEY_RIGHT, I->bytes_per_line-1 - I->cursor_x);
+                          editor_update_visual_selection(); break;
             }
         }
     }

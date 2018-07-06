@@ -13,6 +13,9 @@ CFLAGS += -Wall
 
 all: $(EXE)
 
+debug: CFLAGS += -g -DDEBUG
+debug: $(EXE)
+
 $(EXE): $(OBJ)
 	$(CC) $^ -o $@
 

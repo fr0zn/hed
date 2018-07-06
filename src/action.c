@@ -5,6 +5,13 @@
 
 #include <hed_action.h>
 
+static const char* action_names[] = {
+        "base",
+        "replace",
+        "insert",
+        "delete",
+        "append"
+};
 
 void action_list_print(HEActionList* list) {
     HEAction* node = list->first;

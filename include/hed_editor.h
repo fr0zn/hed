@@ -20,9 +20,10 @@ enum editor_mode {
     MODE_COMMAND      = 0x002,
     MODE_REPLACE      = 0x003,
     MODE_INSERT       = 0x004,
-    MODE_CURSOR       = 0x005,
-    MODE_VISUAL       = 0x006,
-    MODE_GRAMMAR      = 0x007,
+    MODE_APPEND       = 0x005,
+    MODE_CURSOR       = 0x006,
+    MODE_VISUAL       = 0x007,
+    MODE_GRAMMAR      = 0x008,
 };
 
 enum status_message {

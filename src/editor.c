@@ -627,12 +627,24 @@ void editor_start_mode_cursor(){
 void editor_start_mode_command(){
 }
 
+void editor_start_mode_append() {
+    if (I->read_only && !I->warned_read_only) {
+        editor_set_status(STATUS_WARNING, "Changing a readonly file");
+        I->warned_read_only = true;
+    }
+    // If we have data in the repeat buffer, start from the index 0 again
+    if(I->repeat_buff->len != 0){
+        I->repeat_buff->len = 0;
+    }
+}
+
 void editor_set_mode(enum editor_mode mode){
     editor_set_status(STATUS_INFO, "");
     I->mode = mode;
     switch(I->mode){
         case MODE_NORMAL:   editor_start_mode_normal(); break;
         case MODE_INSERT:   editor_start_mode_insert(); break;
+        case MODE_APPEND:   editor_start_mode_append(); break;
         case MODE_REPLACE:  editor_start_mode_replace(); break;
         case MODE_CURSOR:   editor_start_mode_cursor(); break;
         case MODE_VISUAL:   editor_start_mode_visual(); break;
@@ -707,6 +719,7 @@ void editor_render_status_mode(HEDBuff* buff) {
     switch(I->mode){
         case MODE_NORMAL:   buff_vappendf(buff,""); break;
         case MODE_INSERT:   buff_vappendf(buff,"-- INSERT --  "); break;
+        case MODE_APPEND:   buff_vappendf(buff,"-- APPEND --  "); break;
         case MODE_REPLACE:  buff_vappendf(buff,"-- REPLACE --  "); break;
         case MODE_CURSOR:   buff_vappendf(buff,"-- CURSOR --  "); break;
         case MODE_VISUAL:   buff_vappendf(buff,"-- VISUAL --  "); break;
@@ -901,7 +914,7 @@ void editor_replace_visual(){
 
 }
 
-void editor_insert_offset(unsigned int offset, unsigned char c){
+void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
 
     char new_byte = 0;
 
@@ -943,12 +956,18 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         // Modify the last action to reflect the 2nd nibble
         I->action_list->last->b.c.value = I->content[offset].c.value;
 
-        editor_move_cursor(KEY_RIGHT, 1);
+        if (append == false) {
+            editor_move_cursor(KEY_RIGHT, 1);
+        }
 
         I->last_write_offset = -1;
 
     }else{
-    // First octet
+        // If we append, add offset 1, unless the file is empty
+        if (append && I->content_length > 0) {
+            offset++;
+        }
+        // First octet
         // Increase allocation by one byte_t
         // TODO: only if not space already
         I->content = realloc(I->content, (I->content_length + 1)
@@ -973,24 +992,40 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
         HEDByte action_byte = {{0}, {new_byte}, false, 0};
 
-        // Create the action
-        action_add(I->action_list, ACTION_INSERT, offset, action_byte);
+        if (append && I->content_length > 0) {
+            editor_move_cursor(KEY_RIGHT, 1);
+        }
 
+        if (append) {
+            action_add(I->action_list, ACTION_APPEND, offset, action_byte);
+        } else {
+            action_add(I->action_list, ACTION_INSERT, offset, action_byte);
+        }
 
     }
 
 }
 
-void editor_insert_cursor(char c){
-
+void editor_append_cursor(char c) {
     unsigned int offset = editor_offset_at_cursor();
-    fprintf(stderr, "%d\n", offset);
-    editor_insert_offset(offset, c);
+    editor_insert_offset(offset, c, true);
+}
+
+void editor_insert_cursor(char c) {
+    unsigned int offset = editor_offset_at_cursor();
+    editor_insert_offset(offset, c, false);
 
 }
 
-void editor_insert_cursor_repeat(){
+void editor_append_cursor_repeat() {
+    for(int r=0; r < I->repeat; r++){
+        for(int c=0; c < I->repeat_buff->len; c++){
+            editor_append_cursor(I->repeat_buff->content[c]);
+        }
+    }
+}
 
+void editor_insert_cursor_repeat() {
     for(int r=0; r < I->repeat; r++){
         for(int c=0; c < I->repeat_buff->len; c++){
             editor_insert_cursor(I->repeat_buff->content[c]);
@@ -1142,7 +1177,10 @@ void editor_redo(){
                 break;
             case ACTION_DELETE:
                 editor_redo_delete_offset(offset, b); break;
-            case ACTION_APPEND: break;
+            case ACTION_APPEND:
+                editor_redo_insert_offset(offset, b);
+                editor_cursor_offset_scroll(offset + 1);
+                break;
         }
         I->dirty = true;
     }
@@ -1176,7 +1214,10 @@ void editor_undo(){
                 editor_undo_delete_offset(offset, b);
                 editor_cursor_offset_scroll(offset);
                 break;
-            case ACTION_APPEND: break;
+            case ACTION_APPEND:
+                editor_undo_insert_offset(offset);
+                editor_cursor_offset_scroll(offset - 1);
+                break;
 
         }
 
@@ -1334,6 +1375,12 @@ void editor_process_keypress(){
             case 'c': editor_set_mode(MODE_CURSOR); break;
             case 'r': editor_set_mode(MODE_REPLACE); break;
             case 'v': editor_set_mode(MODE_VISUAL); break;
+            case 'a': editor_set_mode(MODE_APPEND); break;
+            // Append end of line
+            case 'A':
+                editor_move_cursor(KEY_RIGHT,
+                I->bytes_per_line-1 - I->cursor_x);
+                editor_set_mode(MODE_APPEND); break;
             case ':': editor_set_mode(MODE_COMMAND); break;
 
             // Remove
@@ -1481,6 +1528,23 @@ void editor_process_keypress(){
 
         return;
     }
+
+    if(I->mode == MODE_APPEND){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC){
+            // Already one repeat write
+            I->repeat--;
+            editor_append_cursor_repeat();
+            editor_reset_write_repeat();
+            editor_set_mode(MODE_NORMAL);
+        }else{
+            editor_append_cursor(c);
+            editor_prepare_write_repeat(c);
+        }
+
+        return;
+    }
+
     if(I->mode == MODE_CURSOR){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){

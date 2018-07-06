@@ -1408,9 +1408,25 @@ void editor_process_command(){
             if(len > 1) {
                 if(strcmp(command, "set ")) {
                     editor_command_set_run(I->read_buff);
-                    break;
+                    return;
                 }
             }
+            break;
+        case 'o':
+            if(len > 2) {
+                if (command[1] == ' '){
+                    long offset = strtol(&command[2], NULL, 0);
+                    editor_cursor_offset_scroll(offset);
+                    return;
+                }
+                if (strcmp(command, "offset ")){
+                    long offset = strtol(&command[7], NULL, 0);
+                    editor_cursor_offset_scroll(offset);
+                    return;
+                }
+
+            }
+            break;
         default:
         editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
     }

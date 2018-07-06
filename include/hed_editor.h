@@ -100,7 +100,7 @@ void editor_process_keypress();
 void editor_resize();
 
 // Initialize the editor state
-void editor_init(char *filename);
+void editor_init();
 
 // Clears all buffers and exits the editor
 void editor_exit();

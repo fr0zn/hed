@@ -50,6 +50,10 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
 
 // Opens the file and stores the content
 void editor_open_file(char *filename){
+    if (filename == NULL) {
+        return;
+    }
+
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL){
 
@@ -57,21 +61,19 @@ void editor_open_file(char *filename){
 
     struct stat statbuf;
     if(stat(filename, &statbuf) == -1){
-        perror("Cannot stat file");
-        exit(1);
+        editor_set_status(STATUS_ERROR, "Cannot stat file");
+        return;
     }
 
     if (!S_ISREG(statbuf.st_mode)) {
-        fprintf(stderr, "File '%s' is not a regular file\n", filename);
-            exit(1);
+        editor_set_status(STATUS_ERROR, "File '%s' is not a regular file\n", filename);
+        return;
 
     }
 
-    // Top byte (original)
-    I->content = malloc(statbuf.st_size*sizeof(HEDByte));
+    I->content = realloc(I->content, statbuf.st_size*sizeof(HEDByte));
 
-    I->file_name = malloc(strlen(filename));
-    strcpy(I->file_name, filename);
+    strncpy(I->file_name, filename, 128);
 
     I->content_length = statbuf.st_size;
 
@@ -97,24 +99,54 @@ void editor_open_file(char *filename){
 }
 
 // Opens the file and stores the content
-void editor_write_file(){
-    FILE *fp = fopen(I->file_name, "wb");
-    if (fp == NULL){
-        editor_set_status(STATUS_ERROR, "Unable to open '%s' for writing: %s", I->file_name, strerror(errno));
-        return;
+void editor_write_file(char* name){
+    FILE *fp;
+    if (strlen(I->file_name) == 0) {
+        if (name == NULL || strlen(name) == 0){
+            editor_set_status(STATUS_ERROR, "No file name");
+            return;
+        }
+        fp = fopen(name, "wb");
+        if (fp == NULL){
+            editor_set_status(STATUS_ERROR, "Unable to open '%s' for writing: %s", name, strerror(errno));
+            return;
+        }
+    } else {
+        fp = fopen(I->file_name, "wb");
+        if (fp == NULL){
+            editor_set_status(STATUS_ERROR, "Unable to open '%s' for writing: %s", I->file_name, strerror(errno));
+            return;
+        }
     }
-    int i;
 
+    int i;
     for(i = 0; i < I->content_length; i++){
         fwrite(&I->content[i].c, 1, 1, fp);
     }
 
     editor_set_status(STATUS_INFO, "written %d bytes", i);
+
+    if (strlen(I->file_name) == 0) {
+        strncpy(I->file_name, name, 128);
+    }
+
     I->dirty = false;
 
     fclose(fp);
 }
 
+int editor_close_file() {
+    if(I->dirty){
+        editor_set_status(STATUS_ERROR, "No write since last change");
+        return 0;
+    }
+
+    I->file_name[0] = 0;
+
+    I->content_length = 0;
+
+    return 1;
+}
 
 
 void editor_render_ascii(int row, unsigned int start, unsigned int len){
@@ -597,7 +629,13 @@ void editor_render_ruler(HEDBuff* buff){
     buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, 0);
     buff_append(buff, "\x1b[2K", 4);
 
-    buff_vappendf(buff, "%s  ", I->file_name);
+    if (strlen(I->file_name) == 0) {
+        buff_vappendf(buff, "[No name]  ");
+    } else {
+
+        buff_vappendf(buff, "[%s]  ", I->file_name);
+    }
+
     if(I->dirty){
         buff_append(buff, "[+]", 3);
     }
@@ -1078,6 +1116,7 @@ void editor_toggle_cursor(){
     I->in_ascii = (I->in_ascii == true) ? false: true;
 }
 
+
 void editor_process_quit(bool force){
 
     if(force){
@@ -1104,13 +1143,21 @@ void editor_process_command(){
     switch(command[0]){
         case 'w':
             if(len == 1){
-                editor_write_file();
+                editor_write_file(NULL);
             }else if(len == 2 && command[1] == 'q'){
-                editor_write_file();
+                editor_write_file(NULL);
                 editor_process_quit(false);
             }else if(len == 3 && command[1] == 'q' && command[2] == '!'){
-                editor_write_file();
+                editor_write_file(NULL);
                 editor_process_quit(true);
+            }
+            if (len > 1){
+                if (command[1] == ' '){
+                    editor_write_file(&command[2]);
+                }
+                if (strcmp(command, "write ")){
+                    editor_write_file(&command[6]);
+                }
             }
             break;
         case 'q':
@@ -1120,7 +1167,22 @@ void editor_process_command(){
                 editor_process_quit(true);
             }
             break;
-
+        case 'e':
+            if(len > 1) {
+                if (command[1] == ' '){
+                    if(editor_close_file()){
+                        editor_open_file(&command[2]);
+                        return;
+                    }
+                }
+                if (strcmp(command, "edit ")){
+                    if(editor_close_file()){
+                        editor_open_file(&command[5]);
+                        return;
+                    }
+                }
+            }
+            break;
         default:
             editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
     }
@@ -1335,7 +1397,7 @@ void editor_resize(){
     editor_refresh_screen();
 }
 
-void editor_init(char *filename){
+void editor_init(){
     I = malloc(sizeof(HEState));
     // Gets the terminal size
     term_get_size(&I->screen_rows, &I->screen_cols);
@@ -1343,6 +1405,11 @@ void editor_init(char *filename){
     term_enable_raw(&I->term_original);
     // Initialize the screen buffer
     I->buff = buff_create();
+
+    // Start buffer with 1024 HEDBytes
+    I->content = malloc(1024*sizeof(HEDByte));
+    I->file_name = malloc(128);
+    I->file_name[0] = 0;
 
     // Set HEState variables
     I->bytes_group = 2;
@@ -1376,8 +1443,6 @@ void editor_init(char *filename){
 
     I->dirty = false;
     I->read_only = false;
-
-    editor_open_file(filename);
 
     // New bytes per line
     editor_calculate_bytes_per_line();

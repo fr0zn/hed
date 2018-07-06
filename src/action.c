@@ -67,7 +67,7 @@ HEActionList* action_list_init(){
     a_list->last    = NULL;
     a_list->current = NULL;
 
-    action_add(a_list, ACTION_BASE, 0, (HEDByte){0,0,0}); // Add one base action
+    action_add(a_list, ACTION_BASE, 0, (HEDByte){{0},{0},false, 0}); // Add one base action
 
     return a_list;
 }

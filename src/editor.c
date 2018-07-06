@@ -341,7 +341,7 @@ void editor_move_cursor_visual(int dir, int amount){
 }
 
 void editor_define_grammar_offset(int start, int end){
-    int index = grammar_add(I->grammars, "", start, end, COLOR_RED_BG);
+    int index = grammar_add(I->grammars, "", start, end, COLOR_GREEN_BG);
     for(int i = start; i <= end; i++){
         I->content[i].g = index;
     }
@@ -676,7 +676,10 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
     if(I->in_ascii){
         // Create the action
         // Original, Current, grammar
-        HEDByte action_byte = {.o = I->content[offset].c.value, .c = c, .g = I->content[offset].g};
+        HEDByte action_byte = {{I->content[offset].c.value},
+                               {c},
+                               I->content[offset].is_original,
+                               I->content[offset].g};
         action_add(I->action_list, ACTION_REPLACE, offset, action_byte);
         editor_write_byte_offset(c, offset);
         editor_move_cursor(KEY_RIGHT, 1);
@@ -711,7 +714,10 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         I->last_write_offset = offset;
 
         // Create the action
-        HEDByte action_byte = { .o = old_byte, .c = I->content[offset].c.value, .g = I->content[offset].g};
+        HEDByte action_byte = {{old_byte},
+                                {I->content[offset].c.value},
+                                I->content[offset].is_original,
+                                I->content[offset].g};
         action_add(I->action_list, ACTION_REPLACE, offset, action_byte);
     }
 
@@ -789,7 +795,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         // Less significative first
         I->content[offset].c.value = utils_hex2int(c);
 
-        HEDByte action_byte = {.o = 0, .c = c, .g = 0};
+        HEDByte action_byte = {{0},{c},false,0};
 
         // Create the action
         action_add(I->action_list, ACTION_INSERT, offset, action_byte);
@@ -837,7 +843,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
         I->last_write_offset = offset;
 
-        HEDByte action_byte = {.o = 0, .c = new_byte, .g = 0};
+        HEDByte action_byte = {{0}, {new_byte}, false, 0};
 
         // Create the action
         action_add(I->action_list, ACTION_INSERT, offset, action_byte);
@@ -888,7 +894,10 @@ void editor_delete_offset(unsigned int offset) {
         memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
         I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
         I->content_length--;
-        HEDByte action_byte = {.o = original_byte, .c = old_byte, .g = I->content[offset].g};
+        HEDByte action_byte = {{original_byte},
+                                {old_byte},
+                                I->content[offset].is_original ,
+                                I->content[offset].g};
         action_add(I->action_list, ACTION_DELETE, offset, action_byte);
     }
 }
@@ -1290,7 +1299,7 @@ void editor_init(char *filename){
     I->read_buff = buff_create();
 
     // Write
-    I->last_byte = (byte_t){0,0};
+    I->last_byte = (byte_t){0};
     I->last_write_offset = -1;
     I->repeat_buff = buff_create();
     I->repeat = 1;

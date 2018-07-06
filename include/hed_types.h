@@ -2,6 +2,7 @@
 #define HED_TYPES_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /**
  * Enum of the ANSI Character Escape sequences
@@ -48,12 +49,11 @@ typedef enum {
  *        printf("0x%x", b.byte); // Outputs 0x46
  */
 typedef union {
+    unsigned char value;
     struct {
         unsigned char bottom : 4;
         unsigned char top : 4;
     }nibble;
-
-    unsigned char value;
 } byte_t;
 
 /**
@@ -63,6 +63,7 @@ typedef union {
 typedef struct {
     byte_t o; // Original
     byte_t c; // Current
+    bool is_original; // If its from the file
     int g; // Grammar index
 } HEDByte;
 

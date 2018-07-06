@@ -80,6 +80,7 @@ void editor_open_file(char *filename){
         fread(&c, 1, 1, fp);
         I->content[i].o.value = c;
         I->content[i].c.value = c;
+        I->content[i].is_original = true;
         I->content[i].g = -1;
     }
 
@@ -439,7 +440,8 @@ void editor_render_content(HEDBuff* buff){
 
             // Write the value on the screen (HEDBuff)
             // If the value is changed
-            if(I->content[offset].c.value != I->content[offset].o.value){
+            if(I->content[offset].c.value != I->content[offset].o.value
+                || !I->content[offset].is_original){
                 buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c.value);
             }else{
                 buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c.value);
@@ -665,7 +667,7 @@ void editor_prepare_write_repeat(char ch){
 
 void editor_replace_offset(unsigned int offset, unsigned char c){
 
-    char old_byte = 0;
+    HEDByte old_byte;
 
     if(offset >= I->content_length){
         return;
@@ -688,14 +690,16 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
 
     // Second octet
     if(I->last_write_offset == offset){
+        old_byte = I->content[offset];
         // One octet already written in this position
-        old_byte = I->content[offset].c.value;
 
         // Less significative first
         //I->content[offset].c.nibble.top = utils_hex2int(c);
         // Most significative first
         I->content[offset].c.nibble.bottom = utils_hex2int(c);
-
+        if (old_byte.c.value != I->content[offset].c.value) {
+            I->content[offset].is_original = false;
+        }
         // Modify the last action to reflect the 2nd nibble
         I->action_list->last->b.c.value = I->content[offset].c.value;
 
@@ -704,19 +708,22 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         I->last_write_offset = -1;
     }else{
 
-        old_byte = I->content[offset].c.value;
+        old_byte = I->content[offset];
 
         // Less significative first
         //I->content[offset].c.nibble.bottom = utils_hex2int(c);
         // Most significative first
         I->content[offset].c.nibble.top = utils_hex2int(c);
+        if (old_byte.c.value != I->content[offset].c.value) {
+            I->content[offset].is_original = false;
+        }
 
         I->last_write_offset = offset;
 
         // Create the action
-        HEDByte action_byte = {{old_byte},
+        HEDByte action_byte = {{old_byte.c.value},
                                 {I->content[offset].c.value},
-                                I->content[offset].is_original,
+                                old_byte.is_original,
                                 I->content[offset].g};
         action_add(I->action_list, ACTION_REPLACE, offset, action_byte);
     }
@@ -791,7 +798,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
         // Make sure to set the original to 0 on insert
         I->content[offset].o.value = 0;
-
+        I->content[offset].is_original = false;
         // Less significative first
         I->content[offset].c.value = utils_hex2int(c);
 
@@ -835,6 +842,7 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
         // Make sure to set the original to 0 and on insert
         I->content[offset].o.value = 0;
         I->content[offset].c.value = 0;
+        I->content[offset].is_original = false;
 
         // Less significative first
         I->content[offset].c.nibble.bottom = new_byte;
@@ -880,6 +888,7 @@ void editor_redo_insert_offset(unsigned int offset, HEDByte b){
     memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
     I->content[offset].c = b.c;
     I->content[offset].o = b.o;
+    I->content[offset].is_original = b.is_original;
     I->content_length++;
 }
 
@@ -943,8 +952,10 @@ void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
     // Swap original and current in action
     list->current->b.o = I->content[offset].c;
     list->current->b.c = I->content[offset].o;
+    list->current->b.is_original = I->content[offset].is_original;
 
     I->content[offset].c = b.o;
+    I->content[offset].is_original = b.is_original;
 
 }
 

@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include <hed_term.h>
+#include <hed_buff.h>
 
 
 void term_get_size(int* rows, int* cols){
@@ -20,12 +21,72 @@ void term_get_size(int* rows, int* cols){
     *cols = ws.ws_col;
 }
 
-void term_print_data(const char *data, ssize_t len) {
+void term_print(const char *data, ssize_t len) {
     // Write to stdout by default
     if (write(STDOUT_FILENO, data, len) == -1) {
         perror("Couldn't write the content: ");
         exit(1);
     }
+}
+
+void term_print_buff(HEDBuff* buff) {
+    term_print(buff->content, buff->len);
+}
+
+void term_clear_line() {
+    term_print(TERM_CLEAR_LINE, TERM_CLEAR_LINE_LEN);
+}
+
+int term_set_format(int format_color) {
+    char buff[16]; // Max int value is 10 digits. 10 + 3 characters for
+                   // the escape sequence. With a buffer of 16 its enought
+    int w = sprintf(buff, "\x1b[%dm", format_color);
+    term_print(buff, w);
+    return w;
+}
+
+int term_set_format_buff(HEDBuff* buff, int format_color) {
+    return buff_vappendf(buff, "\x1b[%dm", format_color);
+}
+
+void term_clear_line_buff(HEDBuff* buff) {
+    buff_append(buff, TERM_CLEAR_LINE, TERM_CLEAR_LINE_LEN);
+}
+
+void term_clear_line_end() {
+    term_print(TERM_CLEAR_LINE_END, TERM_CLEAR_LINE_END_LEN);
+}
+
+void term_clear_line_end_buff(HEDBuff* buff) {
+    buff_append(buff, TERM_CLEAR_LINE_END, TERM_CLEAR_LINE_END_LEN);
+}
+
+void term_cursor_hide(){
+    term_print(TERM_CURSOR_HIDE, TERM_CURSOR_HIDE_LEN);
+}
+
+void term_cursor_hide_buff(HEDBuff* buff) {
+    buff_append(buff, TERM_CURSOR_HIDE, TERM_CURSOR_HIDE_LEN);
+}
+
+void term_cursor_show(){
+    term_print(TERM_CURSOR_SHOW, TERM_CURSOR_SHOW_LEN);
+}
+
+void term_cursor_show_buff(HEDBuff* buff) {
+    buff_append(buff, TERM_CURSOR_SHOW, TERM_CURSOR_SHOW_LEN);
+}
+
+void term_goto(unsigned int row, unsigned int col) {
+    char buff[32]; // Max int value is 10 digits. 2*10 + 3 characters for
+                   // the escape sequence. With a buffer of 32 its enought
+    int w = sprintf(buff, "\x1b[%d;%dH", row, col);
+    term_print(buff, w);
+}
+
+void term_goto_buff(HEDBuff* buff, unsigned int row, unsigned int col) {
+    // Using buffer valist append format
+    buff_vappendf(buff, "\x1b[%d;%dH", row, col);
 }
 
 void term_enable_raw(struct termios* term_original) {
@@ -64,12 +125,12 @@ void term_disable_raw(struct termios* term_original) {
     // Reset the state of the terminal to the term_original information
     tcsetattr(STDIN_FILENO, TCSAFLUSH, (term_original));
     // Show the terminal cursor again
-    term_print_data("\x1b[?25h", 6);
+    term_print("\x1b[?25h", 6);
 }
 
 void term_clear_screen(){
     // Reset color \x1b[0m
     // Move top-left line \x1b\[H
     // Clear until the bottom of the screen \x1b[2J
-    term_print_data("\x1b[0m\x1b\[H\x1b[2J", 11);
+    term_print("\x1b[0m\x1b\[H\x1b[2J", 11);
 }

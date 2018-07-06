@@ -29,12 +29,16 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
 
     // We control the len on print
     buff_clear_dirty(I->status_message);
+    // Clear line
+    term_clear_line_end_buff(I->status_message);
 
     switch(type){
-        case STATUS_INFO: buff_append(I->status_message, "\x1b[34m", 5); break;
-        case STATUS_WARNING: buff_append(I->status_message, "\x1b[33m", 5); break;
-        case STATUS_ERROR: buff_append(I->status_message, "\x1b[31m", 5); break;
-        case STATUS_MODE: buff_append(I->status_message, "\x1b[32m", 5); break;
+        case STATUS_INFO:
+            term_set_format_buff(I->status_message, FG_BLUE); break;
+        case STATUS_WARNING:
+            term_set_format_buff(I->status_message, FG_YELLOW); break;
+        case STATUS_ERROR:
+            term_set_format_buff(I->status_message, FG_RED); break;
     }
 
     va_list ap;
@@ -44,7 +48,7 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
 
     buff_append(I->status_message, buff, x);
 
-    buff_append(I->status_message, "\x1b[0m", 4);
+    term_set_format_buff(I->status_message, FORMAT_RESET);
 
 }
 
@@ -66,7 +70,8 @@ void editor_open_file(char *filename){
     }
 
     if (!S_ISREG(statbuf.st_mode)) {
-        editor_set_status(STATUS_ERROR, "File '%s' is not a regular file\n", filename);
+        editor_set_status(STATUS_ERROR, "File '%s' is not a regular file\n",
+            filename);
         return;
 
     }
@@ -88,10 +93,12 @@ void editor_open_file(char *filename){
 
     // Check if the file is readonly, and warn the user about that.
     if (access(filename, W_OK) == -1) {
-        editor_set_status(STATUS_WARNING, "\"%s\" (%d bytes) [readonly]", I->file_name, I->content_length);
+        editor_set_status(STATUS_WARNING, "\"%s\" (%d bytes) [readonly]",
+            I->file_name, I->content_length);
         I->read_only = true;
     } else {
-        editor_set_status(STATUS_INFO, "\"%s\" (%d bytes)", I->file_name, I->content_length);
+        editor_set_status(STATUS_INFO, "\"%s\" (%d bytes)",
+            I->file_name, I->content_length);
         I->read_only = false;
     }
 
@@ -100,24 +107,35 @@ void editor_open_file(char *filename){
 
 // Opens the file and stores the content
 void editor_write_file(char* name){
+    fprintf(stderr, "%s - %d\n", I->read_buff->content, I->read_buff->len);
     FILE *fp;
-    if (strlen(I->file_name) == 0) {
-        if (name == NULL || strlen(name) == 0){
-            editor_set_status(STATUS_ERROR, "No file name");
-            return;
-        }
+    // If we have argument try to save to that file
+    if (name != NULL && strlen(name) != 0){
         fp = fopen(name, "wb");
         if (fp == NULL){
-            editor_set_status(STATUS_ERROR, "Unable to open '%s' for writing: %s", name, strerror(errno));
+            editor_set_status(STATUS_ERROR,
+                "Unable to open '%s' for writing: %s",
+                name, strerror(errno));
             return;
         }
+        strncpy(I->file_name, name, 128);
     } else {
-        fp = fopen(I->file_name, "wb");
-        if (fp == NULL){
-            editor_set_status(STATUS_ERROR, "Unable to open '%s' for writing: %s", I->file_name, strerror(errno));
+        // If no argument try to save to the previous opened file, if any
+        if (strlen(I->file_name) == 0) {
+            editor_set_status(STATUS_ERROR, "No file name");
             return;
+        } else {
+            fp = fopen(I->file_name, "wb");
+            if (fp == NULL){
+                editor_set_status(STATUS_ERROR,
+                    "Unable to open '%s' for writing: %s",
+                    I->file_name, strerror(errno));
+                return;
+            }
         }
     }
+
+
 
     int i;
     for(i = 0; i < I->content_length; i++){
@@ -125,10 +143,6 @@ void editor_write_file(char* name){
     }
 
     editor_set_status(STATUS_INFO, "written %d bytes", i);
-
-    if (strlen(I->file_name) == 0) {
-        strncpy(I->file_name, name, 128);
-    }
 
     I->dirty = false;
 
@@ -164,16 +178,17 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
 
         // Selection
         if(offset >= I->selection.start && offset <= I->selection.end){
-            buff_append(buff, "\x1b[47m", 5);
+            term_set_format_buff(buff, BG_LIGHT_GRAY);
         }
 
         // Cursor
         if(I->cursor_y == row){
             if(I->cursor_x == i){
                 if(I->in_ascii){
-                    buff_append(buff, "\x1b[43m\x1b[30m", 10);
+                    term_set_format_buff(buff, BG_YELLOW);
+                    term_set_format_buff(buff, FG_BLACK);
                 }else{
-                    buff_append(buff, "\x1b[7m", 4);
+                    term_set_format_buff(buff, FORMAT_INVERTED);
                 }
             }
         }
@@ -181,7 +196,7 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
         if(I->content_length > 0) {
             if(c->c.value != c->o.value
                     || !c->is_original){
-                buff_append(buff, "\x1b[31m", 5);
+                term_set_format_buff(buff, FG_RED);
             }
 
             if(isprint(c->c.value)){
@@ -194,7 +209,7 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
         }
 
 
-        buff_append(buff, "\x1b[0m", 4);
+        term_set_format_buff(buff, FORMAT_RESET);
     }
 
     // Fill the ascii
@@ -204,9 +219,9 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
     }
 
     if(I->in_ascii == true){
-        buff_append(buff, "\x1b[33m", 5);
+        term_set_format_buff(buff, FG_YELLOW);
         buff_append(buff, "|", 1);
-        buff_append(buff, "\x1b[0m", 4);
+        term_set_format_buff(buff, FORMAT_RESET);
     }else{
         buff_append(buff, " ", 1);
     }
@@ -236,7 +251,8 @@ void editor_calculate_bytes_per_line(){
 
 unsigned int editor_offset_at_cursor(){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
-    unsigned int offset = (I->cursor_y - 1 + I->scrolled) * (I->bytes_per_line) + (I->cursor_x);
+    unsigned int offset = (I->cursor_y - 1 + I->scrolled) *
+                          (I->bytes_per_line) + (I->cursor_x);
     if (offset <= 0) {
         return 0;
     }
@@ -255,7 +271,8 @@ void editor_cursor_offset(unsigned int offset){
 void editor_check_scroll_top_limit(){
 
     // Max scroll
-    unsigned int top_limit = I->content_length/I->bytes_per_line - (I->screen_rows-3);
+    unsigned int top_limit = I->content_length/I->bytes_per_line
+                             - (I->screen_rows-3);
     if(I->scrolled >= top_limit){
         I->scrolled = top_limit;
     }
@@ -269,7 +286,8 @@ void editor_cursor_offset_scroll(int offset){
 
     // Check if offset is in view range
     unsigned int offset_min = I->scrolled * I->bytes_per_line;
-	unsigned int offset_max = offset_min + ((I->screen_rows-1) * I->bytes_per_line);
+	unsigned int offset_max = offset_min + ((I->screen_rows-1)
+                              * I->bytes_per_line);
 
     if (offset >= offset_min && offset <= offset_max) {
         editor_cursor_offset(offset);
@@ -422,7 +440,8 @@ void editor_render_content(HEDBuff* buff){
         offset_start = I->content_length;
     }
 
-    int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2); // ruler + status
+    // ruler + status
+    int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2);
     int offset_end = bytes_per_screen + offset_start;
 
     // Don't show more than content_length
@@ -441,13 +460,14 @@ void editor_render_content(HEDBuff* buff){
             line_chars = 0;
             line_bytes = 0;
             line_offset_start = offset;
-            buff_vappendf(buff, "\x1b[34m%08x: ", offset);
+            term_set_format_buff(buff, FG_BLUE);
+            buff_vappendf(buff, "%08x: ", offset);
             line_chars += 10;
             row++;
             // Cursor side
             if(I->in_ascii == false){
                 // Color yellow
-                buff_append(buff, "\x1b[33m", 5);
+                term_set_format_buff(buff, FG_YELLOW);
                 buff_append(buff, "|", 1);
             }else{
                 buff_append(buff, " ", 1);
@@ -456,20 +476,21 @@ void editor_render_content(HEDBuff* buff){
             // End Cursor side
         }
 
-        buff_append(buff, "\x1b[0m", 4);
+        term_set_format_buff(buff, FORMAT_RESET);
 
         // Selection
         if(offset >= I->selection.start && offset <= I->selection.end){
-            buff_append(buff, "\x1b[47m", 5);
+            term_set_format_buff(buff, BG_LIGHT_GRAY);
         }
 
         // Cursor
         if(I->cursor_y == row){
             if(I->cursor_x == line_bytes){
                 if(I->in_ascii){
-                    buff_append(buff, "\x1b[7m", 4);
+                    term_set_format_buff(buff, FORMAT_INVERTED);
                 }else{
-                    buff_append(buff, "\x1b[43m\x1b[30m", 10);
+                    term_set_format_buff(buff, BG_YELLOW);
+                    term_set_format_buff(buff, FG_BLACK);
                 }
             }
         }
@@ -478,30 +499,33 @@ void editor_render_content(HEDBuff* buff){
             buff_vappendf(buff, "%02x", 0);
         }else{
             // Grammar color
-            enum color_bg color = grammar_color_id(I->grammars, I->content[offset].g);
+            enum color_bg color = grammar_color_id(I->grammars,
+                I->content[offset].g);
             if(color != COLOR_NOCOLOR){
-                buff_vappendf(buff, "\x1b[%dm", color);
+                term_set_format_buff(buff, color);
             }
 
             // Write the value on the screen (HEDBuff)
             // If the value is changed
             if(I->content[offset].c.value != I->content[offset].o.value
                 || !I->content[offset].is_original){
-                buff_vappendf(buff, "\x1b[31m%02x", (unsigned int) I->content[offset].c.value);
-            }else{
-                buff_vappendf(buff, "%02x", (unsigned int) I->content[offset].c.value);
+                term_set_format_buff(buff, FG_RED);
             }
+
+            buff_vappendf(buff, "%02x",
+                (unsigned int) I->content[offset].c.value);
 
         }
 
         line_chars += 2;
         line_bytes += 1;
         // Reset color
-        buff_append(buff, "\x1b[0m", 4);
+        term_set_format_buff(buff, FORMAT_RESET);
 
         // Every group, write a separator of len PADDING, unless its the
         // last in line or the last row
-        if((line_bytes % I->bytes_group == 0) && (line_bytes != I->bytes_per_line)){
+        if((line_bytes % I->bytes_group == 0) &&
+            (line_bytes != I->bytes_per_line)){
             for(int s=0; s < PADDING; s++){
                 buff_append(buff, " ", 1);
                 line_chars += 1;
@@ -510,16 +534,15 @@ void editor_render_content(HEDBuff* buff){
         // If end of line, write ascii and new line
         if((offset + 1) % I->bytes_per_line == 0){
             // Cursor side
+            term_set_format_buff(buff, FG_YELLOW);
             if(I->in_ascii == false){
-                buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, "| ", 2);
             }else{
-                buff_append(buff, "\x1b[33m", 5);
                 buff_append(buff, " |", 2);
             }
             line_chars += 2;
             // End Cursor side
-            buff_append(buff, "\x1b[0m", 4);
+            term_set_format_buff(buff, FORMAT_RESET);
             editor_render_ascii(row, line_offset_start, I->bytes_per_line);
             line_chars += I->bytes_per_line; // ascii chars
             buff_append(buff, "\r\n", 2);
@@ -533,13 +556,13 @@ void editor_render_content(HEDBuff* buff){
                 buff_append(buff, " ", 1);
                 line_chars++;
         }
-        buff_append(buff, "\x1b[33m", 5);
+        term_set_format_buff(buff, FG_YELLOW);
         if(I->in_ascii == false){
             buff_append(buff, "| ", 2);
         }else{
             buff_append(buff, " |", 2);
         }
-        buff_append(buff, "\x1b[0m", 4);
+        term_set_format_buff(buff, FORMAT_RESET);
         // Render ascii
         editor_render_ascii(row, line_offset_start, line_bytes);
     }
@@ -547,38 +570,34 @@ void editor_render_content(HEDBuff* buff){
 
     while(++row <= I->screen_rows - 2){
         // clear everything up until the status bar and ruler
-        buff_vappendf(buff, "\x1b[%d;H", row);
-        buff_append(buff, "\x1b[2K", 4);
+        term_goto_buff(buff, row, 0);
+        term_clear_line_end_buff(buff);
     }
 
 
 }
 
-void editor_goto(unsigned int x, unsigned int y){
-    char buffer[32];
-    int w = sprintf(buffer, "\x1b[%d;%dH", y, x);
-    term_print_data(buffer, w);
-}
-
 void editor_render_command(char *command){
     char buffer[32];
-    editor_goto(I->screen_cols-10, I->screen_rows);
+    term_goto(I->screen_rows-EDITOR_COMMAND_STATUS_OFFSET_Y,
+        I->screen_cols-EDITOR_COMMAND_STATUS_OFFSET_X);
     int w = sprintf(buffer, "%s", command);
-    term_print_data(buffer, w);
+    term_print(buffer, w);
 }
-
 
 // Modes
 
 void editor_start_mode_normal(){
-    editor_set_status(STATUS_INFO, "");
     // Reset selection
     I->selection.start = -1;
     I->selection.end = -1;
 }
 
 void editor_start_mode_replace(){
-    editor_set_status(STATUS_MODE, "-- REPLACE --");
+    if (I->read_only && !I->warned_read_only) {
+        editor_set_status(STATUS_WARNING, "Changing a readonly file");
+        I->warned_read_only = true;
+    }
     // If we have data in the repeat buffer, start from the index 0 again
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
@@ -586,7 +605,10 @@ void editor_start_mode_replace(){
 }
 
 void editor_start_mode_insert(){
-    editor_set_status(STATUS_MODE, "-- INSERT --");
+    if (I->read_only && !I->warned_read_only) {
+        editor_set_status(STATUS_WARNING, "Changing a readonly file");
+        I->warned_read_only = true;
+    }
     // If we have data in the repeat buffer, start from the index 0 again
     if(I->repeat_buff->len != 0){
         I->repeat_buff->len = 0;
@@ -595,21 +617,18 @@ void editor_start_mode_insert(){
 
 void editor_start_mode_visual(){
     unsigned int offset = editor_offset_at_cursor();
-    editor_set_status(STATUS_MODE, "-- VISUAL --");
     I->selection.start = offset;
     I->selection.end   = offset;
 }
 
 void editor_start_mode_cursor(){
-    editor_set_status(STATUS_MODE, "-- CURSOR --");
 }
 
 void editor_start_mode_command(){
-    editor_set_status(STATUS_MODE, ":");
-
 }
 
 void editor_set_mode(enum editor_mode mode){
+    editor_set_status(STATUS_INFO, "");
     I->mode = mode;
     switch(I->mode){
         case MODE_NORMAL:   editor_start_mode_normal(); break;
@@ -622,18 +641,16 @@ void editor_set_mode(enum editor_mode mode){
     }
 }
 
-void editor_render_ruler(HEDBuff* buff){
-
+void editor_render_ruler_left(HEDBuff* buff){
     // Left ruler
-    // Move to position and clear line
-    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, 0);
-    buff_append(buff, "\x1b[2K", 4);
+    // Start writting the text now
+    term_goto_buff(buff, I->screen_rows - EDITOR_RULER_OFFSET_Y, 0);
 
-    if (strlen(I->file_name) == 0) {
-        buff_vappendf(buff, "[No name]  ");
-    } else {
-
-        buff_vappendf(buff, "[%s]  ", I->file_name);
+    // Write the left ruler
+    if(strlen(I->file_name) != 0){
+        buff_vappendf(buff, "%s ", I->file_name);
+    }else{
+        buff_vappendf(buff, "[No Name]");
     }
 
     if(I->dirty){
@@ -642,24 +659,71 @@ void editor_render_ruler(HEDBuff* buff){
     if(I->read_only){
         buff_append(buff, "[RO]", 4);
     }
+}
 
+void editor_render_ruler_right(HEDBuff* buff){
     unsigned int offset = editor_offset_at_cursor();
+    // If no data percentage will be 100%
     unsigned int percentage = 100;
 
-    // Right ruler
-    buff_vappendf(buff, "\x1b[%d;%dH", I->screen_rows-1, I->screen_cols - 25);
+    // Right ruler position
+    term_goto_buff(buff, I->screen_rows-1,
+                          I->screen_cols - EDITOR_RULER_RIGHT_OFFSET_X);
 
     if(I->content_length > 1){
         percentage = offset*100/(I->content_length-1);
     }
+
+    // Write the right ruler
     buff_vappendf(buff, "0x%08x (%d)  %d%%", offset, offset, percentage);
-    buff_append(buff, "\x1b[0K", 4);
+}
+
+void editor_render_ruler(HEDBuff* buff) {
+
+    // Move to position and clear line
+    term_goto_buff(buff, I->screen_rows - EDITOR_RULER_OFFSET_Y, 0);
+    term_clear_line_buff(buff);
+
+    // Write the line background and foreground colors
+    term_set_format_buff(buff, BG_LIGHT_GRAY);
+    term_set_format_buff(buff, FG_BLACK);
+
+    // Create an empty line colored with the background
+    for(int i = 0; i < I->screen_cols; i++){
+        buff_append(buff, " ", 1);
+    }
+
+    editor_render_ruler_left(buff);
+    editor_render_ruler_right(buff);
+
+    term_clear_line_end_buff(buff);
+    term_set_format_buff(buff, FORMAT_RESET);
+}
+
+void editor_render_status_mode(HEDBuff* buff) {
+
+    term_set_format_buff(buff, FG_GREEN);
+
+    switch(I->mode){
+        case MODE_NORMAL:   buff_vappendf(buff,""); break;
+        case MODE_INSERT:   buff_vappendf(buff,"-- INSERT --  "); break;
+        case MODE_REPLACE:  buff_vappendf(buff,"-- REPLACE --  "); break;
+        case MODE_CURSOR:   buff_vappendf(buff,"-- CURSOR --  "); break;
+        case MODE_VISUAL:   buff_vappendf(buff,"-- VISUAL --  "); break;
+        case MODE_COMMAND:  buff_vappendf(buff,":"); break;
+        case MODE_GRAMMAR:  break;
+    }
+
+    term_set_format_buff(buff, FORMAT_RESET);
+
 }
 
 void editor_render_status(HEDBuff* buff){
 
     // Move to (0,screen_rows);
-    buff_vappendf(buff, "\x1b[%d;0H", I->screen_rows);
+    term_goto_buff(buff, I->screen_rows, 0);
+
+    editor_render_status_mode(buff);
 
     int len = I->status_message->len;
     if (I->screen_cols <= len) {
@@ -668,7 +732,7 @@ void editor_render_status(HEDBuff* buff){
         buff_append(buff, "...", 3);
     }
     buff_append(buff, I->status_message->content, len);
-    buff_append(buff, "\x1b[0K", 4);
+    term_clear_line_end_buff(buff);
 }
 
 void editor_refresh_screen(){
@@ -680,18 +744,19 @@ void editor_refresh_screen(){
     // of buff_clear
     buff_clear_dirty(buff);
 
-    buff_append(buff, "\x1b[?25l", 6); // Hide cursor
-    buff_append(buff, "\x1b[H", 3); // Move cursor top left
+    term_cursor_hide();
+    // Move cursor top left
+    term_goto_buff(buff, 1, 1);
 
     editor_render_content(buff);
     editor_render_status(buff);
     editor_render_ruler(buff);
 
     // Move to the last line of the screen
-    buff_vappendf(I->buff, "\x1b[%d;1H", I->screen_rows);
+    term_goto_buff(buff, I->screen_rows, 1);
 
     // Write the buffer on the screen
-    term_print_data(buff->content, buff->len);
+    term_print(buff->content, buff->len);
 }
 
 void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
@@ -848,7 +913,8 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
 
     if(I->in_ascii){
         I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
-        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
+        memmove(&I->content[offset+1], &I->content[offset],
+            (I->content_length - offset)*sizeof(HEDByte));
         I->content_length++;
 
         // Make sure to set the original to 0 on insert
@@ -885,8 +951,10 @@ void editor_insert_offset(unsigned int offset, unsigned char c){
     // First octet
         // Increase allocation by one byte_t
         // TODO: only if not space already
-        I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
-        memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
+        I->content = realloc(I->content, (I->content_length + 1)
+                             * sizeof(HEDByte));
+        memmove(&I->content[offset+1], &I->content[offset],
+                (I->content_length - offset)*sizeof(HEDByte));
         I->content_length++;
 
         new_byte = utils_hex2int(c);
@@ -931,15 +999,17 @@ void editor_insert_cursor_repeat(){
 }
 
 void editor_undo_insert_offset(unsigned int offset){
-    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
-    I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
+    memmove(&I->content[offset], &I->content[offset+1],
+        (I->content_length - offset-1)*sizeof(HEDByte));
+    I->content = realloc(I->content, (I->content_length - 1) * sizeof(HEDByte));
     I->content_length--;
     I->dirty = true;
 }
 
 void editor_redo_insert_offset(unsigned int offset, HEDByte b){
-    I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
-    memmove(&I->content[offset+1], &I->content[offset], (I->content_length - offset)*sizeof(HEDByte));
+    I->content = realloc(I->content, (I->content_length + 1) * sizeof(HEDByte));
+    memmove(&I->content[offset+1], &I->content[offset],
+        (I->content_length - offset)*sizeof(HEDByte));
     I->content[offset].c = b.c;
     I->content[offset].o = b.o;
     I->content[offset].is_original = b.is_original;
@@ -955,8 +1025,10 @@ void editor_undo_delete_offset(unsigned int offset, HEDByte b){
 void editor_delete_offset(unsigned int offset) {
     if(I->content_length > 0){
         HEDByte old_byte = I->content[offset];
-        memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
-        I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
+        memmove(&I->content[offset], &I->content[offset+1],
+            (I->content_length - offset-1)*sizeof(HEDByte));
+        I->content = realloc(I->content, (I->content_length - 1)
+            * sizeof(HEDByte));
         HEDByte action_byte = {{old_byte.c.value},
                                 {old_byte.o.value},
                                 old_byte.is_original ,
@@ -1001,7 +1073,8 @@ void editor_reset_write_repeat(){
 }
 
 void editor_redo_delete_offset(unsigned int offset, HEDByte b){
-    memmove(&I->content[offset], &I->content[offset+1], (I->content_length - offset-1)*sizeof(HEDByte));
+    memmove(&I->content[offset], &I->content[offset+1],
+        (I->content_length - offset-1)*sizeof(HEDByte));
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
     I->content_length--;
     editor_cursor_offset(offset);
@@ -1047,8 +1120,8 @@ void editor_redo(){
             return;
         }
 
-        // We start from action base. To redo the last change we have to go to the
-        // next action in the list
+        // We start from action base. To redo the last change we have to go to
+        // the next action in the list
         list->current = list->current->next;
 
         unsigned int offset = list->current->offset;
@@ -1154,9 +1227,11 @@ void editor_process_command(){
             if (len > 1){
                 if (command[1] == ' '){
                     editor_write_file(&command[2]);
+                    return;
                 }
                 if (strcmp(command, "write ")){
                     editor_write_file(&command[6]);
+                    return;
                 }
             }
             break;
@@ -1184,8 +1259,10 @@ void editor_process_command(){
             }
             break;
         default:
-            editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
+        editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
     }
+
+    buff_clear(I->read_buff);
 
 }
 
@@ -1244,8 +1321,10 @@ void editor_process_keypress(){
             case 'k': editor_move_cursor(KEY_UP, I->repeat); break;
             case 'l': editor_move_cursor(KEY_RIGHT, I->repeat); break;
 
-            case 'w': editor_move_cursor(KEY_RIGHT, I->repeat*I->bytes_group); break;
-            case 'b': editor_move_cursor(KEY_LEFT, I->repeat*I->bytes_group); break;
+            case 'w': editor_move_cursor(KEY_RIGHT,
+                I->repeat * I->bytes_group); break;
+            case 'b': editor_move_cursor(KEY_LEFT,
+                I->repeat * I->bytes_group); break;
 
             case 'd': editor_define_grammar_cursor(); break;
 
@@ -1285,43 +1364,14 @@ void editor_process_keypress(){
             // Start of line
             case '0': I->cursor_x = 0; break;
             // End of line
-            case '$': editor_move_cursor(KEY_RIGHT, I->bytes_per_line-1 - I->cursor_x); break;
+            case '$': editor_move_cursor(KEY_RIGHT,
+                I->bytes_per_line-1 - I->cursor_x); break;
         }
+
+        return;
     }
-    else if(I->mode == MODE_REPLACE){
-        // Finish repeat sequence and go to normal mode
-        if(c == KEY_ESC){
-            // Already one repeat write
-            I->repeat--;
-            editor_replace_cursor_repeat();
-            editor_reset_write_repeat();
-            editor_set_mode(MODE_NORMAL);
-        }else{
-            editor_replace_cursor(c);
-            editor_prepare_write_repeat(c);
-        }
-    }
-    else if(I->mode == MODE_INSERT){
-        // Finish repeat sequence and go to normal mode
-        if(c == KEY_ESC){
-            // Already one repeat write
-            I->repeat--;
-            editor_insert_cursor_repeat();
-            editor_reset_write_repeat();
-            editor_set_mode(MODE_NORMAL);
-        }else{
-            editor_insert_cursor(c);
-            editor_prepare_write_repeat(c);
-        }
-    }
-    else if(I->mode == MODE_CURSOR){
-        // Finish repeat sequence and go to normal mode
-        if(c == KEY_ESC){
-            editor_set_mode(MODE_NORMAL);
-        }else{
-        }
-    }
-    else if(I->mode == MODE_VISUAL){
+
+    if(I->mode == MODE_VISUAL){
         // TODO: Implement key repeat correctly
         if(c != '0'){
             unsigned int count = 0;
@@ -1352,8 +1402,10 @@ void editor_process_keypress(){
 
                 case 'd': editor_define_grammar_visual(); break;
 
-                case 'w': editor_move_cursor_visual(KEY_RIGHT, I->repeat*I->bytes_group); break;
-                case 'b': editor_move_cursor_visual(KEY_LEFT, I->repeat*I->bytes_group); break;
+                case 'w': editor_move_cursor_visual(KEY_RIGHT,
+                    I->repeat * I->bytes_group); break;
+                case 'b': editor_move_cursor_visual(KEY_LEFT,
+                    I->repeat * I->bytes_group); break;
 
                 case 'r': editor_replace_visual(); break;
                 case 'x': editor_delete_visual(); break;
@@ -1376,12 +1428,67 @@ void editor_process_keypress(){
                     }
                     break;
                 // Start of line
-                case '0': I->cursor_x = 0; editor_update_visual_selection(); break;
+                case '0': I->cursor_x = 0;
+                          editor_update_visual_selection(); break;
                 // End of line
-                case '$': editor_move_cursor(KEY_RIGHT, I->bytes_per_line-1 - I->cursor_x);
+                case '$': editor_move_cursor(KEY_RIGHT,
+                          I->bytes_per_line-1 - I->cursor_x);
                           editor_update_visual_selection(); break;
             }
         }
+
+        return;
+    }
+
+    // REPLACE, INSERT, CURSOR, APPEND
+
+    if(!isxdigit(c) && c != KEY_ESC) {
+        if (isprint(c)) {
+            editor_set_status(STATUS_WARNING,
+                "\"%c\" is not a valid hex character", c);
+        }
+        return;
+    }
+
+    if(I->mode == MODE_REPLACE){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC){
+            // Already one repeat write
+            I->repeat--;
+            editor_replace_cursor_repeat();
+            editor_reset_write_repeat();
+            editor_set_mode(MODE_NORMAL);
+        }else{
+            editor_replace_cursor(c);
+            editor_prepare_write_repeat(c);
+        }
+
+        return;
+    }
+
+    if(I->mode == MODE_INSERT){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC){
+            // Already one repeat write
+            I->repeat--;
+            editor_insert_cursor_repeat();
+            editor_reset_write_repeat();
+            editor_set_mode(MODE_NORMAL);
+        }else{
+            editor_insert_cursor(c);
+            editor_prepare_write_repeat(c);
+        }
+
+        return;
+    }
+    if(I->mode == MODE_CURSOR){
+        // Finish repeat sequence and go to normal mode
+        if(c == KEY_ESC){
+            editor_set_mode(MODE_NORMAL);
+        }else{
+        }
+
+        return;
     }
 
 }
@@ -1443,6 +1550,7 @@ void editor_init(){
 
     I->dirty = false;
     I->read_only = false;
+    I->warned_read_only = false;
 
     // New bytes per line
     editor_calculate_bytes_per_line();

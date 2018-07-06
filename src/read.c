@@ -86,10 +86,10 @@ int read_line(HEDBuff* buff, const char *prompt){
     // Clear the buffer so we start fresh
     buff_clear_dirty(buff);
 
-    term_print_data("\x1b[?25h", 6); // Show the cursor
+    term_cursor_show();
 
     // Print the prompt
-    term_print_data(prompt, strlen(prompt));
+    term_print(prompt, strlen(prompt));
 
     // Read until we don't press ENTER
     while(c != KEY_ENTER){
@@ -103,9 +103,9 @@ int read_line(HEDBuff* buff, const char *prompt){
         if(c == KEY_BACKSPACE){
             //
             if(buff->len > 0){
-                term_print_data("\x1b[1D",4);
-                term_print_data(" ",1);
-                term_print_data("\x1b[1D",4);
+                term_print("\x1b[1D",4);
+                term_print(" ",1);
+                term_print("\x1b[1D",4);
                 // Delete last character from the buffer
                 buff_delete_last(buff);
             }
@@ -120,11 +120,11 @@ int read_line(HEDBuff* buff, const char *prompt){
         // the buffer and show it on the screen
         if(isprint(c) && c != KEY_NULL){
             buff_append(buff, &c, 1);
-            term_print_data(&c,1);
+            term_print(&c,1);
         }
     }
 
-    term_print_data("\x1b[?25l", 6); // Hide the cursor
+    term_cursor_hide();
 
     return buff->len;
 }

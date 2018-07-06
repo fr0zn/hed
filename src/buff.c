@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -34,7 +35,7 @@ void buff_remove(HEDBuff* buff){
 
 // Sets the length to 0 in order to start appending data from the beggining of
 // the buffer again. The data is not cleared, only the first byte set to 0
-void buff_clear_dirty(HEDBuff* buff){
+void buff_clear_dirty(HEDBuff* buff) {
     buff->content[0] = 0;
     buff->len = 0;
 }
@@ -55,8 +56,21 @@ void buff_delete_last(HEDBuff* buff){
     }
 }
 
+void buff_trim(HEDBuff* buff) {
+    char* p = buff->content;
+
+    if (buff->len <= 0){
+        return;
+    }
+
+    while(isspace(p[buff->len - 1])) p[--buff->len] = 0;
+    while(*p && isspace(* p)) ++p, --buff->len;
+
+    memmove(buff->content, p, buff->len + 1);
+}
+
 // Appends `to_append` to the HEDBuff content and reallocates in case is needed
-void buff_append(HEDBuff* buff, const char* to_append, size_t len){
+void buff_append(HEDBuff* buff, const char* to_append, size_t len) {
 
     // If the HEDBuff len exceeds the capacity, reallocate and double the
     // capacity
@@ -76,7 +90,12 @@ void buff_append(HEDBuff* buff, const char* to_append, size_t len){
     buff->content[buff->len] = 0;
 }
 
-void buff_vappendf(HEDBuff* buff, const char* fmt, ...){
+// Creates a copy of itself
+HEDBuff* buff_copy(HEDBuff* buff) {
+
+}
+
+int buff_vappendf(HEDBuff* buff, const char* fmt, ...) {
 
     char buffer[HEDBUFF_DEFAULT_CAPACITY];
     va_list ap;
@@ -85,4 +104,9 @@ void buff_vappendf(HEDBuff* buff, const char* fmt, ...){
     va_end(ap);
 
     buff_append(buff, buffer, len);
+    return len;
+}
+
+void buff_append_buff(HEDBuff* buff, HEDBuff* buff_to_append) {
+    buff_append(buff, buff_to_append->content, buff_to_append->len);
 }

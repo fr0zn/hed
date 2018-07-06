@@ -9,6 +9,12 @@
 #include <hed_action.h>
 #include <hed_grammar.h>
 
+#define EDITOR_COMMAND_STATUS_OFFSET_Y 0  // Offset from screen rows (MAX)
+#define EDITOR_COMMAND_STATUS_OFFSET_X 10 // Offset from screen cols (MAX)
+
+#define EDITOR_RULER_OFFSET_Y 1
+#define EDITOR_RULER_RIGHT_OFFSET_X 25
+
 enum editor_mode {
     MODE_NORMAL       = 0x001,
     MODE_COMMAND      = 0x002,
@@ -23,7 +29,6 @@ enum status_message {
     STATUS_INFO       = 0x001,
     STATUS_WARNING    = 0x002,
     STATUS_ERROR      = 0x003,
-    STATUS_MODE       = 0x004,
 };
 
 typedef struct {
@@ -75,6 +80,7 @@ typedef struct {
 
     HEDByte *content;
     bool read_only;
+    bool warned_read_only;
 
     bool dirty; // If changes made
 

@@ -820,8 +820,8 @@ void editor_refresh_screen(){
         buff_vappendf(buff, "HED - hex editor");
         term_goto_buff(buff, I->screen_rows/2 - 2, I->screen_cols/2 - 3);
         buff_vappendf(buff, "version %s", HED_VERSION_SHORT);
-        term_goto_buff(buff, I->screen_rows/2, I->screen_cols/2 - 1);
-        buff_vappendf(buff, "by fr0zn");
+        term_goto_buff(buff, I->screen_rows/2, I->screen_cols/2 - 5);
+        buff_vappendf(buff, "by Ferran Celades");
         fflush(stdout);
     }
 

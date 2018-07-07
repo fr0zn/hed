@@ -38,7 +38,7 @@ KEY_CODE read_key() {
             if (read(STDIN_FILENO, &seq[0], 1) == 0) {
                 return KEY_ESC;
             }
-            // Read the seond byte of the sequence
+            // Read the second byte of the sequence
             if (read(STDIN_FILENO, &seq[1], 1) == 0) {
                 return KEY_ESC;
             }
@@ -50,6 +50,8 @@ KEY_CODE read_key() {
                 // Try to read that character '~' previously checking
                 // for the number
                 if (seq[1] >= '0' && seq[1] <= '9') {
+                    // Read the third byte of the sequence
+                    read(STDIN_FILENO, &seq[2], 1);
                     if (seq[2] == '~') {
                         switch (seq[1]) {
                             case '1': return KEY_HOME;     // ESC[1~

@@ -1627,6 +1627,7 @@ void editor_process_keypress(){
             case 'N': editor_process_search_repeat(SEARCH_BACKWARD, true); break;
 
             // Remove
+            case KEY_DEL:
             case 'x': editor_delete_cursor_repeat(); break;
 
             // TODO: Repeat last write command

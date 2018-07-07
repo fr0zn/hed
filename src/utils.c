@@ -1,4 +1,9 @@
+#include <stdbool.h>
+#include <stdio.h>
+#include <ctype.h>
+
 #include <hed_utils.h>
+#include <hed_buff.h>
 
 int utils_hex2int(const char chr) {
 
@@ -15,4 +20,29 @@ int utils_hex2int(const char chr) {
 
     // Make sure we return 0 if is not a valid hex
     return 0;
+}
+
+
+void utils_hexstring_to_buff(HEDBuff* hexstr, HEDBuff* bytearray) {
+
+    buff_clear(bytearray);
+
+    char val;
+
+    for (size_t count = 0; count < hexstr->len; count+=2) {
+        sscanf(&hexstr->content[count], "%2hhx", &val);
+        val = val & 0xff;
+        buff_append(bytearray, &val, 1);
+    }
+}
+
+bool utils_hexonly(HEDBuff* hexstr) {
+
+    for (int i = 0; i < hexstr->len; i++) {
+        if (!isxdigit(hexstr->content[i])) {
+            return false;
+        }
+    }
+
+    return true;
 }

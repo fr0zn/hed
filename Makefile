@@ -16,12 +16,15 @@ all: $(EXE)
 debug: CFLAGS += -g -DDEBUG
 debug: $(EXE)
 
+install:
+	cp $(EXE) /usr/bin
+
 $(EXE): $(OBJ)
-	$(CC) $^ -o $@
+	@$(CC) $^ -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	$(RM) $(OBJ)
+	@$(RM) $(OBJ)

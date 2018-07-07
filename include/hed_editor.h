@@ -68,6 +68,7 @@ typedef struct {
     bool in_ascii;
 
     HEDBuff *read_buff; // For command
+    HEDBuff *search_buff; // For search command
 
     HEGrammarList *grammars;
 

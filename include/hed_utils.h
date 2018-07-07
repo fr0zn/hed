@@ -2,6 +2,9 @@
 #define HED_UTILS_H
 
 #include <stdint.h>
+#include <stdbool.h>
+
+#include <hed_buff.h>
 
 /**
  * @brief      Converts an hexadecimal ascii character to the corresponding
@@ -20,5 +23,9 @@
  *             is not a valid hex value (See Examples)
  */
 int utils_hex2int(const char chr);
+
+void utils_hexstring_to_buff(HEDBuff* hexstr, HEDBuff* bytearray);
+
+bool utils_hexonly(HEDBuff* hexstr);
 
 #endif

@@ -13,6 +13,7 @@
 #include <hed_grammar.h>
 #include <hed_config.h>
 #include <hed_read.h>
+#include <hed_search.h>
 
 
 static HEState *g_hestate = NULL;
@@ -1446,6 +1447,67 @@ void editor_read_command(){
     editor_read_string(":");
 }
 
+void editor_process_search_repeat(SEARCH_DIRECTION direction, bool is_repeat) {
+
+    HEDBuff* search_pattern;
+
+     if (I->in_ascii) {
+        search_pattern = I->search_buff;
+    } else {
+        if (!utils_hexonly(I->search_buff)) {
+            editor_set_status(STATUS_WARNING, "Search pattern is not hex");
+            return;
+        }
+        search_pattern = buff_create();
+        utils_hexstring_to_buff(I->search_buff, search_pattern);
+    }
+
+    int offset = editor_offset_at_cursor();
+
+    if (is_repeat) {
+        if (direction == SEARCH_FORWARD) {
+            offset++;
+        } else {
+            offset--;
+        }
+    }
+
+    int found_offset = search_buffer(I->content, I->content_length, 
+        search_pattern, offset, direction);
+
+    if (!I->in_ascii) {
+        buff_remove(search_pattern);
+    }
+
+    if (found_offset != SEARCH_NOT_FOUND) {
+        editor_cursor_offset_scroll(found_offset);
+        editor_set_status(STATUS_INFO, "Pattern found at 0x%x", found_offset);
+    } else {
+        editor_set_status(STATUS_WARNING, "Pattern not found");
+    }
+}
+
+void editor_process_search(SEARCH_DIRECTION direction) {
+
+    term_clear_line_end();
+
+    if (direction == SEARCH_FORWARD) {
+        if (I->in_ascii) {
+            read_line(I->search_buff, "(asc)/");
+        } else {
+            read_line(I->search_buff, "(hex)/");
+        }
+    } else {
+        if (I->in_ascii) {
+            read_line(I->search_buff, "(asc)?");
+        } else {
+            read_line(I->search_buff, "(hex)?");
+        }
+    }
+
+    editor_process_search_repeat(direction, false);
+}
+
 
 // Process the key pressed
 void editor_process_keypress(){
@@ -1512,6 +1574,12 @@ void editor_process_keypress(){
                 I->bytes_per_line-1 - I->cursor_x);
                 editor_set_mode(MODE_APPEND); break;
             case ':': editor_set_mode(MODE_COMMAND); break;
+
+            // Search
+            case '/': editor_process_search(SEARCH_FORWARD); break;
+            case '?': editor_process_search(SEARCH_BACKWARD); break;
+            case 'n': editor_process_search_repeat(SEARCH_FORWARD, true); break;
+            case 'N': editor_process_search_repeat(SEARCH_BACKWARD, true); break;
 
             // Remove
             case 'x': editor_delete_cursor_repeat(); break;
@@ -1725,6 +1793,7 @@ void editor_init(){
 
     // Read command
     I->read_buff = buff_create();
+    I->search_buff = buff_create();
 
     // Write
     I->last_byte = (byte_t){0};

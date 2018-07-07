@@ -1,6 +1,6 @@
 git_hash != git rev-parse --verify HEAD
 version != git describe --long 2>/dev/null || echo "1.0.0 (no git)"
-version_short != git describe --tags 2>/dev/null || echo "1.0.0"
+version_short != git describe --abbrev=0 2>/dev/null || echo "1.0.0"
 
 EXE = hed
 
@@ -21,7 +21,7 @@ debug: CFLAGS += -g -DDEBUG
 debug: $(EXE)
 
 install:
-	cp $(EXE) /usr/bin
+	install $(EXE) /usr/bin
 
 $(EXE): $(OBJ)
 	@$(CC) $^ -o $@

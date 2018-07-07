@@ -533,7 +533,7 @@ void editor_render_content(HEDBuff* buff){
         if(I->content_length == 0){
             buff_vappendf(buff, "%02x", 0);
         }else{
-            
+
             // Grammar color
             enum color_bg color = grammar_color_id(I->grammars,
                 I->content[offset].g);
@@ -1483,7 +1483,7 @@ void editor_process_search_repeat(SEARCH_DIRECTION direction, bool is_repeat) {
         }
     }
 
-    int found_offset = search_buffer(I->content, I->content_length, 
+    int found_offset = search_buffer(I->content, I->content_length,
         search_pattern, offset, direction);
 
 
@@ -1569,9 +1569,13 @@ void editor_process_keypress(){
         switch (c){
             case KEY_TAB: editor_toggle_cursor(); break;
 
+            case KEY_LEFT:
             case 'h': editor_move_cursor(KEY_LEFT, I->repeat); break;
+            case KEY_DOWN:
             case 'j': editor_move_cursor(KEY_DOWN, I->repeat); break;
+            case KEY_UP:
             case 'k': editor_move_cursor(KEY_UP, I->repeat); break;
+            case KEY_RIGHT:
             case 'l': editor_move_cursor(KEY_RIGHT, I->repeat); break;
 
             case 'w': editor_move_cursor(KEY_RIGHT,
@@ -1660,9 +1664,14 @@ void editor_process_keypress(){
             editor_set_mode(MODE_NORMAL);
         }else{
             switch(c){
+
+                case KEY_LEFT:
                 case 'h': editor_move_cursor_visual(KEY_LEFT, I->repeat); break;
+                case KEY_DOWN:
                 case 'j': editor_move_cursor_visual(KEY_DOWN, I->repeat); break;
+                case KEY_UP:
                 case 'k': editor_move_cursor_visual(KEY_UP, I->repeat); break;
+                case KEY_RIGHT:
                 case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
 
                 case 'd': editor_define_grammar_visual(); break;

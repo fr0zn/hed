@@ -1553,21 +1553,25 @@ void editor_process_search(SEARCH_DIRECTION direction) {
 }
 
 void editor_increment_byte_cursor(int repeat){
-    int offset = editor_offset_at_cursor();
-    HEDByte action_byte = I->content[offset];
-    action_byte.o.value = action_byte.c.value;
-    I->content[offset].c.value += repeat;
-    I->repeat = 1;
-    action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+    if (I->content_length > 0) {
+        int offset = editor_offset_at_cursor();
+        HEDByte action_byte = I->content[offset];
+        action_byte.o.value = action_byte.c.value;
+        I->content[offset].c.value += repeat;
+        I->repeat = 1;
+        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+    }
 }
 
 void editor_decrement_byte_cursor(int repeat){
-    int offset = editor_offset_at_cursor();
-    HEDByte action_byte = I->content[offset];
-    action_byte.o.value = action_byte.c.value;
-    I->content[offset].c.value -= repeat;
-    I->repeat = 1;
-    action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+    if (I->content_length > 0) {
+        int offset = editor_offset_at_cursor();
+        HEDByte action_byte = I->content[offset];
+        action_byte.o.value = action_byte.c.value;
+        I->content[offset].c.value -= repeat;
+        I->repeat = 1;
+        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+    }
 }
 
 

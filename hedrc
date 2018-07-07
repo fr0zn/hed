@@ -1,0 +1,19 @@
+# Number of bytes per group
+set bytes = 2
+
+# Number of groups per line
+set groups = 8
+
+# Nibble to write first
+# value: 0
+#              v
+# 00000000: | cf
+# value: 1
+#             v
+# 00000000: | cf
+
+# Nibble to write first on insert mode
+set insert = 0
+
+# Nibble to replace first on replace mode
+set replace = 1

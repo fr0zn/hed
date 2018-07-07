@@ -1,0 +1,207 @@
+.Dd July 7, 2018
+.Dt HED 1 1
+.Os Linux
+
+.Sh NAME
+.Nm hed
+.Nd vim like hex editor
+
+.Sh SYNOPSIS
+.Nm hed
+.Op Fl v
+.Op Fl h
+.Op FILE
+
+.Sh DESCRIPTION
+.Nm
+uses vim-inspired key bindings to navigate and edit a file in hex format
+
+The options included with the program are as follows:
+.Bl -tag -width Ds
+amount of octets to display per line.
+.It Fl h
+displays help and exits.
+.It Fl v
+displays version info and exits.
+.El
+
+.Sh FILES
+~/.hedrc       Your personal
+.Nm
+initialization configuration.
+.Pp
+See section
+.Em OPTIONS
+
+
+.Sh KEY BINDINGS
+All commands can be prefixed with a number 'n' to repeat it 'n' times.
+.Pp
+To navigate in the editor (modes: NORMAL, VISUAL):
+.Pp
+.Bl -item -compact -offset 2n
+.It
+h / left   : Move cursor one byte left in the buffer.
+.It
+l / right  : Move cursor one byte right in the buffer.
+.It
+j / down   : Move cursor one position up.
+.It
+k / up     : Move cursor one position down.
+.It
+w          : Move cursor one group of bytes right.
+.It
+b          : Move cursor one group of bytes left.
+.It
+gg         : Go to the beggining of the file.
+.It
+G          : Go to the end of the file. If 'n' number is typed before,
+             go to offset 'n' instead.
+.It
+TAB        : Switch cursor position between ascii and hex.
+.El
+.Pp
+To search for bytes in the buffer (modes: NORMAL):
+.Pp
+.Bl -item -compact -offset 2n
+/          : Start search input forward. Can be used to search for
+             byte value "\\deedbeef" or strings "\\ELF" depending on
+             the cursor side.
+.It
+?          : Same as before but searches backwards.
+.It
+n          : Search for next occurrence (forward).
+.It
+N          : Search for previous occurrence (backward).
+.El
+.Pp
+To add, remove or insert bytes in the buffer:
+.Pp
+.Bl -item -compact -offset 2n
+i          : Enable
+.Em INSERT
+mode.
+.It
+r          : Enable
+.Em REPLACE
+mode.
+.It
+v          : Enable
+.Em VISUAL
+mode.
+.It
+a          : Enable
+.Em APPEND
+mode. If 'A' is used instead, moves to the end
+             of the line first.
+.It
+]          : Increment the byte at the cursor position. If 'n' is given,
+             increments 'n' times. (modes: NORMAL)
+.It
+[          : Decrement the byte at the cursor position. If 'n' is given,
+             decrements 'n' times. (modes: NORMAL)
+.It
+x / DEL    : Delete byte at current cursor position. If 'n' is given,
+             delete 'n' bytes. (modes: NORMAL, VISUAL)
+.Pp
+.El
+Extra key-bindings:
+.Bl -item -compact -offset 2n
+.Pp
+:          : Enable
+.Em COMMAND
+mode.
+.It
+ESC        : Enable
+.Em NORMAL
+mode.
+.It
+u          : Undo the last action. If 'n' is given, undoes 'n' times.
+.It
+CTRL+R     : Redo the last action. If 'n' is given, redoes 'n' times.
+.El
+
+.Sh MODES
+.Nm
+knows of six several modes which can be used.
+.Ss NORMAL
+Normal-mode is the mode where regular keys can be used to switch modes,
+navigate through the buffer, etc. Hit ESC at any time to trigger
+normal-mode.
+.Ss REPLACE
+In replace-mode, the editor replaces the current byte at the current
+offset with a byte of choice. Use 'r' when in normal-mode to switch to
+replace-mode.
+.Ss INSERT
+In insert-mode, the editor inserts a byte value at the current offset.
+Use 'i' when in normal-mode to switch to insert-mode.
+.Ss APPEND
+In append-mode, the editor appends a byte value one position after the
+current selected offset. To go into append mode, type 'a' when in
+normal-mode.
+.Ss VISUAL
+In visual-mode, the editor shows a selection of bytes that can be either
+replaced or removed with 'r' or 'x' respective. The remove and replace
+is respectively all over the selection.
+.Ss COMMAND
+In command-mode, manual commands can be entered. This can be triggered
+by typing the colon (
+.Sy :
+) character. Current implemented commands are:
+.Pp
+.Bl -item -compact -offset 2n
+.It
+NUM               Go to offset in base 10.
+.It
+o[ffset] NUM      Same as before.
+.Pp
+.It
+0xHEXVALUE        Go to offset in base 16.
+.It
+o[ffset] 0xHEX    Same as before.
+.Pp
+.It
+set [OPTION]=val  See section
+.Em OPTIONS
+.It
+.Pp
+w[rite] [file]    Write current buffer to disk. If file is given, write
+                  the buffer in the new file name.
+.It
+e[dit] [file]     Open a new file to edit, will remind to save previous
+                  if its edited.
+.It
+q                 quit (add ! to force quit)
+.El
+
+.Sh OPTIONS
+
+All options should be prefixed with the keyword 'set'.
+
+.Pp
+.Bl -item -compact -offset 2n
+bytes             Number of bytes per group (default: 2)
+.It
+groups            Number of groups per line (default: 8)
+.It
+insert            Nibble to write first on insert mode (default: 0)
+.It
+replace           Nibble to replace first on replace mode (default: 1)
+.El
+
+.Sh BUGS
+Probably. Please send any comments or bug reports to
+https://github.com/fr0zn/hed
+.Pp
+.Nm
+uses ANSI escape sequences to render the terminal screen. Therefore
+compatibility and portability may be an issue. It should work on most
+modern terminal emulators.
+
+.Sh AUTHORS
+
+Implemented by Ferran Celades <fr0zn@protonmail.com>, with indirect help
+of Kevin Pors <https://github.com/krpors/hx>
+
+.Sh SEE ALSO
+.Xr xxd 1

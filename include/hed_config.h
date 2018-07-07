@@ -4,6 +4,8 @@
 typedef struct {
     int bytes_group;
     int groups_per_line;
+    int insert_nibble;
+    int replace_nibble;
 } HEDConfig;
 
 #include <hed_buff.h>

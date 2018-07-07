@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <ctype.h>
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
+#include <pwd.h>
 
 #include <hed_editor.h>
 #include <hed_term.h>
@@ -182,9 +184,13 @@ void editor_command_set_run(HEDBuff* cmd) {
     if (cmd->len > 0){
         config_parse_line_key_value(cmd, key, value);
         if (key->len > 0){
-            if (config_update_key_value(g_config, key, value) == 1) {
+            int ret = config_update_key_value(g_config, key, value);
+            if (ret == 0) {
                 editor_set_status(STATUS_INFO, "Set '%s', to '%s'",
                     key->content, value->content);
+            } else if (ret == 2){
+                editor_set_status(STATUS_ERROR, "Invalid value for option \"%s\"",
+                    key->content);
             } else {
                 editor_set_status(STATUS_ERROR, "Invalid option \"%s\"",
                     key->content);
@@ -870,7 +876,8 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
                                {c},
                                I->content[offset].is_original,
                                I->content[offset].g};
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+        action_add(I->action_list, ACTION_REPLACE, offset, action_byte,
+            I->repeat);
         editor_write_byte_offset(c, offset);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
@@ -881,10 +888,14 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
         old_byte = I->content[offset];
         // One octet already written in this position
 
-        // Less significative first
-        //I->content[offset].c.nibble.top = utils_hex2int(c);
-        // Most significative first
-        I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        if (g_config->replace_nibble == 0) {
+            I->content[offset].c.nibble.top =
+                    I->content[offset].c.nibble.bottom;
+            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        } else {
+            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        }
+
         if (old_byte.c.value != I->content[offset].c.value) {
             I->content[offset].is_original = false;
         }
@@ -898,10 +909,12 @@ void editor_replace_offset(unsigned int offset, unsigned char c){
 
         old_byte = I->content[offset];
 
-        // Less significative first
-        //I->content[offset].c.nibble.bottom = utils_hex2int(c);
-        // Most significative first
-        I->content[offset].c.nibble.top = utils_hex2int(c);
+        if (g_config->replace_nibble == 0) {
+            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        } else {
+            I->content[offset].c.nibble.top = utils_hex2int(c);
+        }
+
         if (old_byte.c.value != I->content[offset].c.value) {
             I->content[offset].is_original = false;
         }
@@ -1017,11 +1030,13 @@ void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
     // Second octet
     if(I->last_write_offset == offset){
 
-        // Less significative first
-        I->content[offset].c.nibble.top = I->content[offset].c.nibble.bottom ;
-        I->content[offset].c.nibble.bottom = utils_hex2int(c);
-        // Most significative first
-        //I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        if (g_config->insert_nibble == 0) {
+            I->content[offset].c.nibble.top =
+                        I->content[offset].c.nibble.bottom;
+            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        } else {
+            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        }
 
         // Modify the last action to reflect the 2nd nibble
         I->action_list->last->b.c.value = I->content[offset].c.value;
@@ -1053,10 +1068,12 @@ void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
         I->content[offset].c.value = 0;
         I->content[offset].is_original = false;
 
-        // Less significative first
-        I->content[offset].c.nibble.bottom = new_byte;
-        // Most significative first
-        //I->content[offset].c.nibble.top = new_byte;
+        if (g_config->insert_nibble == 0) {
+            // Less significative first
+            I->content[offset].c.nibble.bottom = new_byte;
+        } else {
+            I->content[offset].c.nibble.top = new_byte;
+        }
 
         I->last_write_offset = offset;
 
@@ -1711,6 +1728,8 @@ void editor_process_keypress(){
                     I->repeat * g_config->bytes_group); break;
 
                 case 'r': editor_replace_visual(); break;
+
+                case KEY_DEL:
                 case 'x': editor_delete_visual(); break;
                 // EOF
                 case 'G':
@@ -1827,6 +1846,36 @@ void editor_resize(){
     editor_refresh_screen();
 }
 
+void editor_load_config_file() {
+
+    char *homedir;
+    int c = 0;
+
+    if ((homedir = getenv("HOME")) == NULL) {
+        homedir = getpwuid(getuid())->pw_dir;
+    }
+    if (homedir != NULL){
+        char* config_path = malloc(strlen(homedir) + 10);
+        strcpy(config_path, homedir);
+        strcpy(config_path + strlen(homedir), "/.hedrc");
+        if( access( config_path, F_OK ) != -1 ) {
+            char *buff = config_open(config_path);
+            int ret = config_parse(g_config, buff);
+            if (ret != -1) {
+                term_set_format(FG_RED);
+                printf("Error on line %d (%s)\r\n", ret+1, config_path);
+                term_set_format(FORMAT_RESET);
+                printf("Press ENTER to continue\r\n");
+                fflush(stdout);
+                while( c != KEY_ENTER) {
+                    c = read_key();
+                }
+                term_set_format(FORMAT_RESET);
+            }
+        }
+    }
+}
+
 void editor_init(){
     I = malloc(sizeof(HEState));
     g_config = config_create_default();
@@ -1877,6 +1926,8 @@ void editor_init(){
     I->read_only = false;
     I->warned_read_only = false;
 
+    editor_load_config_file();
+
     // New bytes per line
     editor_calculate_bytes_per_line();
 
@@ -1885,6 +1936,8 @@ void editor_init(){
     signal(SIGWINCH, editor_resize);
     // Register the exit statement
     atexit(editor_exit);
+
+
 }
 
 // Clears all buffers and exits the editor

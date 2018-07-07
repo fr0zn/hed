@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+#include <hed_term.h>
 #include <hed_buff.h>
 #include <hed_editor.h>
 
@@ -16,6 +17,8 @@ HEDConfig* config_create_default() {
     HEDConfig* conf = malloc(sizeof(HEDConfig));
     conf->bytes_group = 2;
     conf->groups_per_line = 8;
+    conf->insert_nibble = 0;
+    conf->replace_nibble = 1;
     return conf;
 }
 
@@ -64,35 +67,81 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
     char *k = key->content;
     char *v = value->content;
 
-    fprintf(stderr, "UPDATE: %s - %s", k, v);
+    int error = 0;
 
     if (strcmp(k, "bytes") == 0) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
             if( value_int == 0 ){
-                value_int = 1;
+                error = 2;
+            } else {
+                config->bytes_group = value_int;
+                return 0;
             }
-            config->bytes_group = value_int;
-            return 1;
         }
-        return 0;
+        error = 2;
 
     } else if (strcmp(k, "groups") == 0) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
             if( value_int == 0 ){
-                value_int = 1;
+                error = 2;
+            } else {
+                config->groups_per_line = value_int;
+                return 0;
             }
-            config->groups_per_line = value_int;
-            return 1;
         }
 
-        return 0;
+        error = 2;
+
+    } else if (strcmp(k, "insert") == 0) {
+
+        if (numbers_only(v)){
+            int value_int = atoi(v);
+            if ( (value_int != 0) && (value_int != 1) ){
+                error = 2;
+            } else {
+                config->insert_nibble = value_int;
+                return 0;
+            }
+        }
+
+        error = 2;
+    } else if (strcmp(k, "replace") == 0) {
+
+        if (numbers_only(v)){
+            int value_int = atoi(v);
+            if( (value_int != 0) && (value_int != 1)){
+                error = 2;
+            } else {
+                config->replace_nibble = value_int;
+                return 0;
+            }
+        }
+
+        error = 2;
     } else {
-        return 0;
+        // NO valid key
+        error = 1;
     }
+
+    term_set_format(FG_RED);
+
+    if (error == 2) {
+        printf("Invalid value '%s' for option '%s'\r\n", v, k);
+    }
+
+    if (error == 1) {
+        printf("Invalid option '%s'\r\n", k);
+    }
+
+    term_set_format(FORMAT_RESET);
+
+    fflush(stdout);
+
+    return error;
 }
 
 
@@ -131,7 +180,7 @@ int config_parse(HEDConfig* config, char* buff){
     HEDBuff* key = buff_create();
     HEDBuff* value = buff_create();
     int line = 0;
-    int ret = 1;
+    int ret = 0;
 
     while ((c = *buff++)) {
         if(c == EOF) break;
@@ -141,7 +190,7 @@ int config_parse(HEDConfig* config, char* buff){
             if (key->len > 0){
                 ret = config_update_key_value(config, key, value);
             }
-            if (ret != 1){
+            if (ret != 0){
                 return line;
             }
             buff_clear_dirty(line_buff);

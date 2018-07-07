@@ -1,3 +1,7 @@
+git_hash != git rev-parse --verify HEAD
+version != git describe --long 2>/dev/null || echo "1.0.0 (no git)"
+version_short != git describe --tags 2>/dev/null || echo "1.0.0"
+
 EXE = hed
 
 SRC_DIR = src
@@ -6,7 +10,7 @@ OBJ_DIR = obj
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
-CPPFLAGS += -Iinclude
+CPPFLAGS += -Iinclude -DHED_GIT_HASH=\"$(git_hash)\" -DHED_VERSION=\"$(version)\" -DHED_VERSION_SHORT=\"$(version_short)\"
 CFLAGS += -Wall
 
 .PHONY: all clean

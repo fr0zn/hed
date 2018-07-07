@@ -3,6 +3,11 @@
 
 #include <hed_buff.h>
 
+typedef struct {
+	int start;
+	int end;
+} HEDFound;
+
 typedef enum {
 
 	SEARCH_FORWARD,

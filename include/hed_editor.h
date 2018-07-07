@@ -8,6 +8,7 @@
 #include <hed_utils.h>
 #include <hed_action.h>
 #include <hed_grammar.h>
+#include <hed_search.h>
 
 #define EDITOR_COMMAND_STATUS_OFFSET_Y 0  // Offset from screen rows (MAX)
 #define EDITOR_COMMAND_STATUS_OFFSET_X 10 // Offset from screen cols (MAX)
@@ -69,6 +70,7 @@ typedef struct {
 
     HEDBuff *read_buff; // For command
     HEDBuff *search_buff; // For search command
+    HEDFound last_found;
 
     HEGrammarList *grammars;
 

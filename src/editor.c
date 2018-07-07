@@ -226,6 +226,11 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
             c = &I->content[offset];
         }
 
+        // Found match
+        if(offset >= I->last_found.start && offset <= I->last_found.end){
+            term_set_format_buff(buff, BG_BLUE);
+        }
+
         // Selection
         if(offset >= I->selection.start && offset <= I->selection.end){
             term_set_format_buff(buff, BG_LIGHT_GRAY);
@@ -503,6 +508,11 @@ void editor_render_content(HEDBuff* buff){
 
         term_set_format_buff(buff, FORMAT_RESET);
 
+        // Found match
+        if(offset >= I->last_found.start && offset <= I->last_found.end){
+            term_set_format_buff(buff, BG_BLUE);
+        }
+
         // Selection
         if(offset >= I->selection.start && offset <= I->selection.end){
             term_set_format_buff(buff, BG_LIGHT_GRAY);
@@ -523,6 +533,7 @@ void editor_render_content(HEDBuff* buff){
         if(I->content_length == 0){
             buff_vappendf(buff, "%02x", 0);
         }else{
+            
             // Grammar color
             enum color_bg color = grammar_color_id(I->grammars,
                 I->content[offset].g);
@@ -802,8 +813,8 @@ void editor_refresh_screen(){
         term_goto_buff(buff, I->screen_rows/2 - 4, I->screen_cols/2 - 5);
         buff_vappendf(buff, "HED - hex editor");
         term_goto_buff(buff, I->screen_rows/2 - 2, I->screen_cols/2 - 3);
-        buff_vappendf(buff, "version 0.5");
-        term_goto_buff(buff, I->screen_rows/2 - 1, I->screen_cols/2 - 2);
+        buff_vappendf(buff, "version %s", HED_VERSION_SHORT);
+        term_goto_buff(buff, I->screen_rows/2, I->screen_cols/2 - 1);
         buff_vappendf(buff, "by fr0zn");
         fflush(stdout);
     }
@@ -1451,7 +1462,7 @@ void editor_process_search_repeat(SEARCH_DIRECTION direction, bool is_repeat) {
 
     HEDBuff* search_pattern;
 
-     if (I->in_ascii) {
+    if (I->in_ascii) {
         search_pattern = I->search_buff;
     } else {
         if (!utils_hexonly(I->search_buff)) {
@@ -1475,15 +1486,24 @@ void editor_process_search_repeat(SEARCH_DIRECTION direction, bool is_repeat) {
     int found_offset = search_buffer(I->content, I->content_length, 
         search_pattern, offset, direction);
 
-    if (!I->in_ascii) {
-        buff_remove(search_pattern);
-    }
 
     if (found_offset != SEARCH_NOT_FOUND) {
         editor_cursor_offset_scroll(found_offset);
         editor_set_status(STATUS_INFO, "Pattern found at 0x%x", found_offset);
+        I->last_found.start = found_offset;
+        if (I->in_ascii) {
+            I->last_found.end = found_offset + I->search_buff->len - 1;
+        } else {
+            I->last_found.end = found_offset + search_pattern->len - 1;
+        }
     } else {
         editor_set_status(STATUS_WARNING, "Pattern not found");
+        I->last_found.start = -1;
+        I->last_found.end = -1;
+    }
+
+    if (!I->in_ascii) {
+        buff_remove(search_pattern);
     }
 }
 
@@ -1794,6 +1814,8 @@ void editor_init(){
     // Read command
     I->read_buff = buff_create();
     I->search_buff = buff_create();
+    I->last_found.start = -1;
+    I->last_found.end = -1;
 
     // Write
     I->last_byte = (byte_t){0};

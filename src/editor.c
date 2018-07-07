@@ -1373,6 +1373,13 @@ void editor_process_command(){
         return;
     }
 
+    // Go offset
+    if (isdigit(command[0])) {
+        int offset = strtol(command, NULL, 0);
+        editor_cursor_offset_scroll(offset);
+        return;
+    }
+
     switch(command[0]){
         case 'w':
             if(len == 1){

@@ -913,8 +913,8 @@ void editor_replace_cursor(char c){
 
 }
 
-void editor_replace_repeat_last(){
-    I->repeat = I->repeat_buff->len;
+void editor_replace_repeat_last(int times){
+    I->repeat = I->repeat_buff->len * times;
     if (!I->in_ascii) {
         I->repeat /= 2;
     }
@@ -1075,8 +1075,8 @@ void editor_insert_cursor(char c) {
 
 }
 
-void editor_append_repeat_last() {
-    I->repeat = I->repeat_buff->len;
+void editor_append_repeat_last(int times) {
+    I->repeat = I->repeat_buff->len * times;
     if (!I->in_ascii) {
         I->repeat /= 2;
     }
@@ -1093,8 +1093,8 @@ void editor_append_cursor_repeat() {
     }
 }
 
-void editor_insert_repeat_last() {
-    I->repeat = I->repeat_buff->len;
+void editor_insert_repeat_last(int times) {
+    I->repeat = I->repeat_buff->len * times;
     if (!I->in_ascii) {
         I->repeat /= 2;
     }
@@ -1212,14 +1212,16 @@ void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
 void editor_repeat_last_action(){
 
     HEActionList *list = I->action_list;
+    int times = I->repeat;
+    for(int i = 0; i < times; i++) {
+        switch(list->last->type){
+            case ACTION_BASE: break;
+            case ACTION_REPLACE: editor_replace_repeat_last(times); break;
+            case ACTION_INSERT: editor_insert_repeat_last(times); break;
+            case ACTION_APPEND: editor_append_repeat_last(times); break;
+            case ACTION_DELETE: break;
 
-    switch(list->last->type){
-        case ACTION_BASE: break;
-        case ACTION_REPLACE: editor_replace_repeat_last(); break;
-        case ACTION_INSERT: editor_insert_repeat_last(); break;
-        case ACTION_APPEND: editor_append_repeat_last(); break;
-        case ACTION_DELETE: break;
-
+        }
     }
 
 }

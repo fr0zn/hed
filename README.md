@@ -11,6 +11,8 @@ The project does not have a dependency or libraries.
 To compile and install:
 
 ```
+git clone https://github.com/fr0zn/hed
+cd hed
 make
 sudo make install
 ```

@@ -18,7 +18,6 @@ uses vim-inspired key bindings to navigate and edit a file in hex format
 
 The options included with the program are as follows:
 .Bl -tag -width Ds
-amount of octets to display per line.
 .It Fl h
 displays help and exits.
 .It Fl v
@@ -103,6 +102,8 @@ mode. If 'A' is used instead, moves to the end
 .It
 x / DEL    : Delete byte at current cursor position. If 'n' is given,
              delete 'n' bytes. (modes: NORMAL, VISUAL)
+.It
+dot (.)    : Repeats the last write. (modes: NORMAL)
 .Pp
 .El
 Extra key-bindings:

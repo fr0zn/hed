@@ -179,6 +179,37 @@ e[dit] [file]     Open a new file to edit, will remind to save previous
 q                 quit (add ! to force quit)
 .El
 
+.Sh EXAMPLES
+
+.Pp
+.Bl -item -compact -offset 2n
+3j                Move 3 lines down
+.It
+3w                Move 3 bytes group to the right
+.It
+10x               Remove the following 10 bytes
+.It
+10r90             Replace 10 bytes with value 0x90
+.It
+<TAB>10r9         Replace 10 bytes with '9' (ascii)
+.It
+10i90             Inserts 10 bytes with value 0x90
+.It
+4i9<ESC>          Inserts 4 values 0x9, (0x99 0x99)
+.It
+0V$               Select the entire line (moving to the beginning first)
+.It
+0V$r0<ESC>        Select the entire line and replace it with 0's
+.It
+ggVG              Select the entire file
+.It
+:w out.bin        Writes the current buffer to file 'out.bin'
+.It
+:q!               Quits without saving
+.It
+:set bytes=4      Sets the number of bytes per group
+.El
+
 .Sh OPTIONS
 
 All options should be prefixed with the keyword 'set'.

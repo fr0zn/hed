@@ -144,6 +144,12 @@ ggVG              Select the entire file
 :set bytes=4      Sets the number of bytes per group
 ```
 
+## TODO
+
+- Layout and splits
+- Multibuffer
+- Diff tool
+
 ## Authors
 
 Implemented by Ferran Celades <fr0zn@protonmail.com>, with indirect help of Kevin Pors <https://github.com/krpors/hx>

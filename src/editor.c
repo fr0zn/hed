@@ -1629,7 +1629,7 @@ void editor_process_keypress(){
             case 'b': editor_move_cursor(KEY_LEFT,
                 I->repeat * g_config->bytes_group); break;
 
-            case 'd': editor_define_grammar_cursor(); break;
+            //case 'd': editor_delete_cursor_repeat(); break;
 
             case '[': editor_decrement_byte_cursor(I->repeat); break;
             case ']': editor_increment_byte_cursor(I->repeat); break;
@@ -1724,7 +1724,7 @@ void editor_process_keypress(){
                 case KEY_RIGHT:
                 case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
 
-                case 'd': editor_define_grammar_visual(); break;
+                case 'd': editor_delete_visual(); break;
 
                 case 'w': editor_move_cursor_visual(KEY_RIGHT,
                     I->repeat * g_config->bytes_group); break;

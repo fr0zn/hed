@@ -2,7 +2,7 @@
 
 vim like hex editor
 
-<img src="https://i.imgur.com/MyVMJP5.png" width="600">
+<img src="https://i.imgur.com/MyVMJP5.png" width="800">
 
 # Compiling and running
 

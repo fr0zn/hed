@@ -51,7 +51,7 @@ int main(int argc, char *argv[]){
 		}
 	}
 
-    editor_init(argv[1]);
+    editor_init();
 
     if(argc > 1){
         editor_open_file(argv[1]);

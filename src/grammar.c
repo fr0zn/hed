@@ -57,7 +57,7 @@ int grammar_add(HEGrammarList* list, char *name, int start, int end, enum color_
     }
 
 
-    list->content[id].name  = malloc(strlen(name));
+    list->content[id].name  = malloc(strlen(name) + 1);
     strcpy(list->content[id].name, name);
 
     list->content[id].start = start;

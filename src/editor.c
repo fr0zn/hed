@@ -1623,6 +1623,9 @@ void editor_process_keypress(){
             case 'k': editor_move_cursor(KEY_UP, I->repeat); break;
             case KEY_RIGHT:
             case 'l': editor_move_cursor(KEY_RIGHT, I->repeat); break;
+			
+            case KEY_PAGEUP: editor_move_cursor(KEY_UP, I->screen_rows); break;
+            case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, I->screen_rows); break;
 
             case 'w': editor_move_cursor(KEY_RIGHT,
                 I->repeat * g_config->bytes_group); break;
@@ -1724,8 +1727,8 @@ void editor_process_keypress(){
                 case KEY_RIGHT:
                 case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
 			    
-		case KEY_PAGEUP: editor_move_cursor(KEY_UP, I->screen_rows); break;
-		case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, I->screen_rows); break;
+                case KEY_PAGEUP: editor_move_cursor(KEY_UP, I->screen_rows); break;
+                case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, I->screen_rows); break;
 
                 case 'd': editor_delete_visual(); break;
 

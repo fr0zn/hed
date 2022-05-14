@@ -1316,6 +1316,7 @@ void editor_undo(){
 
     if (list->current->type == ACTION_BASE) {
         editor_set_status(STATUS_INFO, "Already at oldest change");
+        I->dirty = false;
         return;
     }
 

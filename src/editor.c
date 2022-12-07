@@ -87,13 +87,17 @@ void editor_open_file(char *filename){
 
     I->content_length = size;
 
-    uint8_t c; // Single c read
-    for(int i = 0; i < size; i++){
-        fread(&c, 1, 1, fp);
-        I->content[i].o.value = c;
-        I->content[i].c.value = c;
-        I->content[i].is_original = true;
-        I->content[i].g = -1;
+    uint8_t c[4096];
+    size_t pos = 0;
+    while (pos < size) {
+        size_t count = fread(c, sizeof(uint8_t), sizeof(c), fp);
+        for(int i = 0; i < count; i++){
+            I->content[pos].o.value = c[i];
+            I->content[pos].c.value = c[i];
+            I->content[pos].is_original = true;
+            I->content[pos].g = -1;
+            ++pos;
+        }
     }
 
     // Check if the file is readonly, and warn the user about that.

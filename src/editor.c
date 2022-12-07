@@ -65,32 +65,30 @@ void editor_open_file(char *filename){
 
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL){
-
-    }
-
-    struct stat statbuf;
-    if(stat(filename, &statbuf) == -1){
-        editor_set_status(STATUS_ERROR, "Cannot stat file");
+        editor_set_status(STATUS_ERROR, "Cannot open file");
         return;
     }
 
-    if (!S_ISREG(statbuf.st_mode)) {
-        editor_set_status(STATUS_ERROR, "File '%s' is not a regular file\n",
-            filename);
+    if (fseek(fp, 0, SEEK_END)) {
+        editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
         return;
-
+    }
+    long size = ftell(fp);
+    if (fseek(fp, 0, SEEK_SET)) {
+        editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
+        return;
     }
 
     I->init_msg = true;
 
-    I->content = realloc(I->content, statbuf.st_size*sizeof(HEDByte));
+    I->content = realloc(I->content, size*sizeof(HEDByte));
 
     strncpy(I->file_name, filename, 128);
 
-    I->content_length = statbuf.st_size;
+    I->content_length = size;
 
     uint8_t c; // Single c read
-    for(int i = 0; i < statbuf.st_size; i++){
+    for(int i = 0; i < size; i++){
         fread(&c, 1, 1, fp);
         I->content[i].o.value = c;
         I->content[i].c.value = c;

@@ -22,7 +22,7 @@ debug: CFLAGS += -g -DDEBUG
 debug: $(EXE)
 
 install:
-	@install -m 755 $(EXE) /usr/bin
+	@install -m 755 $(EXE) /usr/local/bin
 	@install -m 644 hed.1 /usr/local/share/man/man1
 
 $(EXE): $(OBJ)

@@ -1689,6 +1689,8 @@ void editor_process_keypress(){
             // End of line
             case '$': editor_move_cursor(KEY_RIGHT,
                 I->bytes_per_line-1 - I->cursor_x); break;
+			case 'Q' :
+                editor_process_quit(false); break;
         }
 
         return;
@@ -1883,13 +1885,15 @@ void editor_load_config_file() {
                 }
                 term_set_format(FORMAT_RESET);
             }
-        }
+		} else {
+			fprintf(stderr, "Config file not found");
+		}
     }
 }
 
-void editor_init(){
+void editor_init(HEDConfig* conf){
     I = malloc(sizeof(HEState));
-    g_config = config_create_default();
+    g_config = conf;
     // Gets the terminal size
     term_get_size(&I->screen_rows, &I->screen_cols);
     // Enter in raw mode

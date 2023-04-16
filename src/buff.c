@@ -19,7 +19,7 @@ HEDBuff* buff_create(){
         // Make sure empty string of len 0
         buff->content[0] = 0;
         return buff;
-    }else{
+    } else {
         exit(1);
     }
 }

@@ -2,7 +2,7 @@ git_hash := $(shell git rev-parse --verify HEAD)
 version := $(shell git describe --long 2>/dev/null || echo "1.0.0 (no git)")
 version_short := $(shell git describe --abbrev=0 2>/dev/null || echo "1.0.0")
 
-EXE = hed
+EXE = HexViM
 
 SRC_DIR = src
 OBJ_DIR = obj

@@ -12,6 +12,8 @@ typedef struct {
 
 HEDConfig* config_create_default();
 
+HEDConfig* config_create(int group, int groups_per_line, int insert_nibble, int replace_nibble);
+
 char* config_open(char* filename);
 
 int numbers_only(const char *s);

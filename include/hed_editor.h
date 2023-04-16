@@ -9,6 +9,7 @@
 #include <hed_action.h>
 #include <hed_grammar.h>
 #include <hed_search.h>
+#include <hed_config.h>
 
 #define EDITOR_COMMAND_STATUS_OFFSET_Y 0  // Offset from screen rows (MAX)
 #define EDITOR_COMMAND_STATUS_OFFSET_X 10 // Offset from screen cols (MAX)
@@ -113,7 +114,7 @@ void editor_process_keypress();
 void editor_resize();
 
 // Initialize the editor state
-void editor_init();
+void editor_init(HEDConfig *conf);
 
 // Clears all buffers and exits the editor
 void editor_exit();

@@ -1,5 +1,5 @@
 # Number of bytes per group
-set bytes = 2
+set bytes = 6
 
 # Number of groups per line
 set groups = 8

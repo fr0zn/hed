@@ -14,11 +14,15 @@
 #include <hed_editor.h>
 
 HEDConfig* config_create_default() {
+    return config_create(2,8,0,1);
+}
+
+HEDConfig* config_create(int group, int groups_per_line, int insert_nibble, int replace_nibble){
     HEDConfig* conf = malloc(sizeof(HEDConfig));
-    conf->bytes_group = 2;
-    conf->groups_per_line = 8;
-    conf->insert_nibble = 0;
-    conf->replace_nibble = 1;
+    conf->bytes_group = group;
+    conf->groups_per_line = groups_per_line;
+    conf->insert_nibble = insert_nibble;
+    conf->replace_nibble = replace_nibble;
     return conf;
 }
 

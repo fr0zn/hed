@@ -23,7 +23,7 @@ void action_list_print(HEActionList* list) {
         if (node == list->current) {
             fprintf(stderr, "CURRENT: ");
         }
-        fprintf(stderr, "(%d, %s, %02x-%02x [%d]) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value, node->repeat );
+        fprintf(stderr, "(%u, %s, %02x-%02x [%d]) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value, node->repeat );
         node = node->next;
         if (node == NULL) {
             fprintf(stderr, "END\n");

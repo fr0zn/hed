@@ -80,13 +80,13 @@ void term_cursor_show_buff(HEDBuff* buff) {
 void term_goto(unsigned int row, unsigned int col) {
     char buff[32]; // Max int value is 10 digits. 2*10 + 3 characters for
                    // the escape sequence. With a buffer of 32 its enought
-    int w = sprintf(buff, "\x1b[%d;%dH", row, col);
+    int w = sprintf(buff, "\x1b[%u;%uH", row, col);
     term_print(buff, w);
 }
 
 void term_goto_buff(HEDBuff* buff, unsigned int row, unsigned int col) {
     // Using buffer valist append format
-    buff_vappendf(buff, "\x1b[%d;%dH", row, col);
+    buff_vappendf(buff, "\x1b[%u;%uH", row, col);
 }
 
 void term_enable_raw(struct termios* term_original) {

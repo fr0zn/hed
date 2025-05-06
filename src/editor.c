@@ -93,6 +93,14 @@ void editor_open_file(char *filename){
     size_t pos = 0;
     while (pos < size) {
         size_t count = fread(c, sizeof(uint8_t), sizeof(c), fp);
+        if (count != 4096 && count < size - pos) {
+            if (ferror(fp)) {
+                editor_set_status(STATUS_ERROR, "Failed to read file: %s",
+                    strerror(errno));
+            }
+            fclose(fp);
+            return;
+        }
         for(int i = 0; i < count; i++){
             I->content[pos].o.value = c[i];
             I->content[pos].c.value = c[i];

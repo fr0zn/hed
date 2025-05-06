@@ -456,18 +456,6 @@ void editor_move_cursor_visual(int dir, int amount){
 
 }
 
-void editor_define_grammar_offset(int start, int end){
-    int index = grammar_add(I->grammars, "", start, end, COLOR_GREEN_BG);
-    for(int i = start; i <= end; i++){
-        I->content[i].g = index;
-    }
-}
-
-void editor_define_grammar_cursor(){
-    unsigned int offset = editor_offset_at_cursor();
-    editor_define_grammar_offset(offset, offset);
-}
-
 void editor_render_content(HEDBuff* buff){
 
     unsigned int line_chars = 0;
@@ -709,11 +697,6 @@ void editor_set_mode(enum editor_mode mode){
     }
 }
 
-void editor_define_grammar_visual(){
-    editor_define_grammar_offset(I->selection.start, I->selection.end);
-    editor_set_mode(MODE_NORMAL);
-}
-
 void editor_render_ruler_left(HEDBuff* buff){
     // Left ruler
     // Start writting the text now
@@ -847,13 +830,6 @@ void editor_refresh_screen(){
 void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
 
     I->content[offset].c.value = new_byte;
-}
-
-void editor_write_cursor(unsigned char new_byte){
-
-    unsigned int offset = editor_offset_at_cursor();
-    editor_write_byte_offset(new_byte, offset);
-    editor_move_cursor(KEY_RIGHT, 1);
 }
 
 void editor_prepare_write_repeat(char ch){
@@ -1318,7 +1294,6 @@ void editor_redo(){
         I->dirty = true;
     }
 
-    //action_list_print(list);
 
 }
 
@@ -1372,7 +1347,6 @@ void editor_undo(){
         I->dirty = true;
     }
 
-    //action_list_print(list);
 }
 
 void editor_toggle_cursor(){

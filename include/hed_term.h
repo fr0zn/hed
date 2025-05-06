@@ -90,13 +90,6 @@ void term_get_size(int* rows, int* cols);
 void term_print(const char *data, ssize_t len);
 
 /**
- * @brief      Prints a HEBuff to the screen
- *
- * @param      buff  The buffer to be printed (see `include/hed_buff.h`)
- */
-void term_print_buff(HEDBuff* buff);
-
-/**
  * @brief      Sets the color or format on the terminal but instead of
  *             printing the corresponding escape sequence appends the data
  *             to a HEDBuff (see `include/hed_buff.h`)
@@ -125,25 +118,9 @@ int term_set_format(int format_color);
 void term_cursor_hide();
 
 /**
- * @brief      Hides the cursor from the terminal screen appending the data
- *             to a HEDBuff (see `include/hed_buff.h`)
- *
- * @param      buff  The buffer
- */
-void term_cursor_hide_buff(HEDBuff* buff);
-
-/**
  * @brief      Shows the cursor from the terminal screen
  */
 void term_cursor_show();
-
-/**
- * @brief      Hides the cursor from the terminal screen appending the data
- *             to a HEDBuff (see `include/hed_buff.h`)
- *
- * @param      buff  The buffer
- */
-void term_cursor_show_buff(HEDBuff* buff);
 
 /**
  * @brief      Moves the cursor to position (x, y)
@@ -162,11 +139,6 @@ void term_goto(unsigned int row, unsigned int col);
  * @param      col   Column to move to
  */
 void term_goto_buff(HEDBuff* buff, unsigned int row, unsigned int col);
-
-/**
- * @brief      Clears the terminal current line
- */
-void term_clear_line();
 
 /**
  * @brief      Clears the terminal current line but instead of printing

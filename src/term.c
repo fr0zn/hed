@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -29,14 +28,6 @@ void term_print(const char *data, ssize_t len) {
     }
 }
 
-void term_print_buff(HEDBuff* buff) {
-    term_print(buff->content, buff->len);
-}
-
-void term_clear_line() {
-    term_print(TERM_CLEAR_LINE, TERM_CLEAR_LINE_LEN);
-}
-
 int term_set_format(int format_color) {
     char buff[16]; // Max int value is 10 digits. 10 + 3 characters for
                    // the escape sequence. With a buffer of 16 its enought
@@ -65,16 +56,8 @@ void term_cursor_hide(){
     term_print(TERM_CURSOR_HIDE, TERM_CURSOR_HIDE_LEN);
 }
 
-void term_cursor_hide_buff(HEDBuff* buff) {
-    buff_append(buff, TERM_CURSOR_HIDE, TERM_CURSOR_HIDE_LEN);
-}
-
 void term_cursor_show(){
     term_print(TERM_CURSOR_SHOW, TERM_CURSOR_SHOW_LEN);
-}
-
-void term_cursor_show_buff(HEDBuff* buff) {
-    buff_append(buff, TERM_CURSOR_SHOW, TERM_CURSOR_SHOW_LEN);
 }
 
 void term_goto(unsigned int row, unsigned int col) {

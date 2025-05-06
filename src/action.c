@@ -5,32 +5,6 @@
 
 #include <hed_action.h>
 
-static const char* action_names[] = {
-        "base",
-        "replace",
-        "insert",
-        "delete",
-        "append"
-};
-
-void action_list_print(HEActionList* list) {
-    HEAction* node = list->first;
-    if (node == NULL) {
-        fprintf(stderr, "Nothing to delete, head is null\n");
-        return;
-    }
-    while (node != NULL) {
-        if (node == list->current) {
-            fprintf(stderr, "CURRENT: ");
-        }
-        fprintf(stderr, "(%u, %s, %02x-%02x [%d]) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value, node->repeat );
-        node = node->next;
-        if (node == NULL) {
-            fprintf(stderr, "END\n");
-        }
-    }
-}
-
 void action_add(HEActionList *list, enum action_type type, unsigned int offset,
     HEDByte byte, int repeat){
 
@@ -70,7 +44,6 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset,
     list->last    = action;
     list->current = action;
 
-    //action_list_print(list);
 }
 
 HEActionList* action_list_init(){

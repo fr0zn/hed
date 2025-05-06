@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdio.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -320,8 +321,9 @@ void editor_cursor_offset(unsigned int offset){
 }
 
 void editor_check_scroll_top_limit(){
-
-    // Max scroll
+    // editor_calculate_bytes_per_line shouldv'e already been called, but assert just in case
+    assert(I->bytes_per_line);
+    // max scroll 
     unsigned int top_limit = I->content_length/I->bytes_per_line
                              - (I->screen_rows-3);
     if(I->scrolled >= top_limit){

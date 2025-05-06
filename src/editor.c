@@ -1883,9 +1883,11 @@ void editor_init(){
     term_enable_raw(&I->term_original);
     // Initialize the screen buffer
     I->buff = buff_create();
+    I->init_msg = false;
 
     // Start buffer with 1024 HEDBytes
     I->content = malloc(1024*sizeof(HEDByte));
+    I->content_length = 0;
     I->file_name = malloc(128);
     I->file_name[0] = 0;
 

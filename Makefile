@@ -26,7 +26,7 @@ install:
 	@install -m 644 hed.1 /usr/local/share/man/man1
 
 $(EXE): $(OBJ)
-	@$(CC) $(CPPFLAGS) $^ -o $@
+	@$(CC) $(CPPFLAGS) $(LDFLAGS) $^ -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(OBJ_DIR)

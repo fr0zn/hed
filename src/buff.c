@@ -23,10 +23,10 @@ HEDBuff* buff_create(){
 }
 
 void buff_remove(HEDBuff* buff){
-    if(buff->content != NULL){
-        free(buff->content);
-    }
     if(buff != NULL){
+        if(buff->content != NULL){
+            free(buff->content);
+        }
         free(buff);
     }
 }

@@ -56,3 +56,16 @@ HEActionList* action_list_init(){
 
     return a_list;
 }
+
+void action_cleanup(HEActionList *list) {
+    if(list == NULL || list->last == NULL) {
+        return;
+    }
+    HEAction *prev;
+    HEAction *action = list->last;
+
+    while ((prev = action->prev) != NULL) {
+        free(action);
+        action = prev;
+    }
+}

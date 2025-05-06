@@ -35,6 +35,8 @@ typedef struct {
 HEActionList* action_list_init();
 void action_add(HEActionList *list, enum action_type type,
     unsigned int offset, HEDByte byte, int repeat);
+
+void action_cleanup(HEActionList *list);
 void __debug__print_action_list(HEActionList *list);
 
 #endif

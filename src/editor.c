@@ -1960,8 +1960,8 @@ void editor_exit(){
             free(I->status_message);
         }
         if (I->action_list != NULL){
-            // Free the status_mesasge
-            //TODO: free the double linked list
+            // Free the action list items, then free the action list itself
+            action_cleanup(I->action_list);
             free(I->action_list);
         }
 

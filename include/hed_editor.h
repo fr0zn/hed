@@ -57,8 +57,6 @@ typedef struct {
     HEDBuff* status_message; // Message in the status bar
 
     unsigned int bytes_per_line;
-    unsigned int bytes_group;
-    unsigned int groups_per_line;
 
     int scrolled; // Lines scrolled
 

@@ -33,15 +33,18 @@ char* config_open(char* filename){
 
     struct stat statbuf;
     if(stat(filename, &statbuf) == -1) {
+        fclose(fp);
         return NULL;
     }
 
     if (!S_ISREG(statbuf.st_mode)) {
+        fclose(fp);
         fprintf(stderr, "File '%s' is not a regular file\n", filename);
         return NULL;
     }
 
     if (statbuf.st_size == 0) {
+        fclose(fp);
         return NULL;
     }
 

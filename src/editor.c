@@ -71,11 +71,13 @@ void editor_open_file(char *filename){
 
     if (fseek(fp, 0, SEEK_END)) {
         editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
+        fclose(fp);
         return;
     }
     long size = ftell(fp);
     if (fseek(fp, 0, SEEK_SET)) {
         editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
+        fclose(fp);
         return;
     }
 

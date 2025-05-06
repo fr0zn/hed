@@ -76,9 +76,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if( value_int == 0 ){
-                error = 2;
-            } else {
+            if( value_int ){
                 config->bytes_group = value_int;
                 return 0;
             }
@@ -89,9 +87,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if( value_int == 0 ){
-                error = 2;
-            } else {
+            if( value_int ){
                 config->groups_per_line = value_int;
                 return 0;
             }
@@ -103,9 +99,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if ( (value_int != 0) && (value_int != 1) ){
-                error = 2;
-            } else {
+            if ( (value_int == 0) || (value_int == 1) ){
                 config->insert_nibble = value_int;
                 return 0;
             }
@@ -116,9 +110,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if( (value_int != 0) && (value_int != 1)){
-                error = 2;
-            } else {
+            if( (value_int == 0) || (value_int == 1)){
                 config->replace_nibble = value_int;
                 return 0;
             }

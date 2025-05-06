@@ -233,7 +233,6 @@ int editor_close_file() {
 
 void editor_render_ascii(int row, unsigned int start, unsigned int len){
 
-    HEDByte *c;
     HEDBuff* buff = I->buff;
     int offset = start;
 
@@ -241,7 +240,6 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
         // Get byte to write
         offset = start + i;
         if(I->content_length > 0) {
-            c = &I->content[offset];
         }
 
         // Found match
@@ -267,6 +265,7 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
         }
 
         if(I->content_length > 0) {
+            HEDByte *c = &I->content[offset];
             if(c->c.value != c->o.value
                     || !c->is_original){
                 term_set_format_buff(buff, FG_RED);

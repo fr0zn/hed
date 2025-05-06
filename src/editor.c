@@ -1896,6 +1896,7 @@ void editor_load_config_file() {
                 term_set_format(FORMAT_RESET);
             }
         }
+        free(config_path);
     }
 }
 

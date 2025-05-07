@@ -42,7 +42,7 @@ enum grammar_step {
 };
 
 
-HEGrammarList* grammar_list_create();
+HEGrammarList* grammar_list_create(void);
 
 enum color_bg grammar_color_id(HEGrammarList* list, int id);
 

@@ -32,7 +32,7 @@ typedef struct {
 
 }HEActionList;
 
-HEActionList* action_list_init();
+HEActionList* action_list_init(void);
 void action_add(HEActionList *list, enum action_type type,
     unsigned int offset, HEDByte byte, int repeat);
 

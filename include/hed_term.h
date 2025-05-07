@@ -115,12 +115,12 @@ int term_set_format(int format_color);
 /**
  * @brief      Hides the cursor from the terminal screen
  */
-void term_cursor_hide();
+void term_cursor_hide(void);
 
 /**
  * @brief      Shows the cursor from the terminal screen
  */
-void term_cursor_show();
+void term_cursor_show(void);
 
 /**
  * @brief      Moves the cursor to position (x, y)
@@ -153,7 +153,7 @@ void term_clear_line_buff(HEDBuff* buff);
  * @brief      Clears the terminal from the current position until the end of
  *             the current line
  */
-void term_clear_line_end();
+void term_clear_line_end(void);
 
 /**
  * @brief      Clears the terminal from the current position until the end of
@@ -199,7 +199,7 @@ void term_disable_raw(struct termios* term_original);
  * of the screen and clearing it until the end
  *
  */
-void term_clear_screen();
+void term_clear_screen(void);
 
 // Prints a char array
 

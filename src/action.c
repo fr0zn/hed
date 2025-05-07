@@ -51,7 +51,7 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset,
 
 }
 
-HEActionList* action_list_init(){
+HEActionList* action_list_init(void){
     HEActionList * a_list = malloc(sizeof(HEActionList));
     if (a_list == NULL) {
         perror("failed to allocate memory for action list: ");

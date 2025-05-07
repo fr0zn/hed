@@ -10,7 +10,7 @@
  *             character or number
  * 			   (check `include/hed_types.h` `KEY_CODE`)
  */
-KEY_CODE read_key();
+KEY_CODE read_key(void);
 
 /**
  * @brief      Reads a line.

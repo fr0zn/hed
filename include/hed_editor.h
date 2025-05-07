@@ -103,18 +103,18 @@ typedef struct {
 void editor_open_file(char *filename);
 
 // Redraws the screen content
-void editor_refresh_screen();
+void editor_refresh_screen(void);
 
 // Process the key pressed
-void editor_process_keypress();
+void editor_process_keypress(void);
 
 // SIGWINCH handler
-void editor_resize();
+void editor_resize(int sig);
 
 // Initialize the editor state
-void editor_init();
+void editor_init(void);
 
 // Clears all buffers and exits the editor
-void editor_exit();
+void editor_exit(void);
 
 #endif

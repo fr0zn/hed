@@ -7,7 +7,7 @@
 
 #define GRAMMAR_LIST_DEFAULT_SIZE 32
 
-HEGrammarList* grammar_list_create(){
+HEGrammarList* grammar_list_create(void){
     HEGrammarList *list = malloc(sizeof(HEGrammarList));
     if (list == NULL) {
         perror("Failed to allocate grammar list");

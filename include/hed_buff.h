@@ -18,7 +18,7 @@ typedef struct {
 } HEDBuff;
 
 // Creates and initializes to 0's a new HEDBuff
-HEDBuff* buff_create();
+HEDBuff* buff_create(void);
 
 // Deallocates the memory including the object itself
 void buff_remove(HEDBuff* buff);

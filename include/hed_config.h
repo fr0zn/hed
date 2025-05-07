@@ -10,7 +10,7 @@ typedef struct {
 
 #include <hed_buff.h>
 
-HEDConfig* config_create_default();
+HEDConfig* config_create_default(void);
 
 char* config_open(char* filename);
 

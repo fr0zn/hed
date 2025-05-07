@@ -6,7 +6,7 @@
 #include <hed_buff.h>
 
 // Allocate and initialize a HEDBuff with default size data
-HEDBuff* buff_create(){
+HEDBuff* buff_create(void){
 
     HEDBuff *buff = malloc(sizeof(HEDBuff));
     if(buff == NULL) {

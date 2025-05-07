@@ -44,7 +44,7 @@ void term_clear_line_buff(HEDBuff* buff) {
     buff_append(buff, TERM_CLEAR_LINE, TERM_CLEAR_LINE_LEN);
 }
 
-void term_clear_line_end() {
+void term_clear_line_end(void) {
     term_print(TERM_CLEAR_LINE_END, TERM_CLEAR_LINE_END_LEN);
 }
 
@@ -52,11 +52,11 @@ void term_clear_line_end_buff(HEDBuff* buff) {
     buff_append(buff, TERM_CLEAR_LINE_END, TERM_CLEAR_LINE_END_LEN);
 }
 
-void term_cursor_hide(){
+void term_cursor_hide(void){
     term_print(TERM_CURSOR_HIDE, TERM_CURSOR_HIDE_LEN);
 }
 
-void term_cursor_show(){
+void term_cursor_show(void){
     term_print(TERM_CURSOR_SHOW, TERM_CURSOR_SHOW_LEN);
 }
 
@@ -111,7 +111,7 @@ void term_disable_raw(struct termios* term_original) {
     term_print("\x1b[?25h", 6);
 }
 
-void term_clear_screen(){
+void term_clear_screen(void){
     // Reset color \x1b[0m
     // Move top-left line \x1b\[H
     // Clear until the bottom of the screen \x1b[2J

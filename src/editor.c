@@ -160,7 +160,7 @@ void editor_write_file(char* name){
     fclose(fp);
 }
 
-void editor_calculate_bytes_per_line(){
+void editor_calculate_bytes_per_line(void){
 
     // Calculate the maximum hex+ascii bytes that fits in the screen size
     // one byte = 2 chars
@@ -210,7 +210,7 @@ void editor_command_set_run(HEDBuff* cmd) {
 
 }
 
-int editor_close_file() {
+int editor_close_file(void) {
     if(I->dirty){
         editor_set_status(STATUS_ERROR, "No write since last change");
         return 0;
@@ -293,7 +293,7 @@ void editor_render_ascii(unsigned int row, unsigned int start, unsigned int len)
 }
 
 
-unsigned int editor_offset_at_cursor(){
+unsigned int editor_offset_at_cursor(void){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
     unsigned int offset = (I->cursor_y - 1 + I->scrolled) *
                           (I->bytes_per_line) + (I->cursor_x);
@@ -312,7 +312,7 @@ void editor_cursor_offset(unsigned int offset){
     I->cursor_y = offset / I->bytes_per_line - I->scrolled + 1;
 }
 
-void editor_check_scroll_top_limit(){
+void editor_check_scroll_top_limit(void){
     // editor_calculate_bytes_per_line shouldv'e already been called, but assert just in case
     assert(I->bytes_per_line);
     // max scroll 
@@ -420,7 +420,7 @@ void editor_move_cursor(int dir, int amount){
 
 }
 
-void editor_update_visual_selection(){
+void editor_update_visual_selection(void){
 
     unsigned int offset = editor_offset_at_cursor();
     assert(offset <= INT_MAX);
@@ -625,13 +625,13 @@ void editor_render_command(char *command){
 
 // Modes
 
-void editor_start_mode_normal(){
+void editor_start_mode_normal(void){
     // Reset selection
     I->selection.start = -1;
     I->selection.end = -1;
 }
 
-void editor_start_mode_replace(){
+void editor_start_mode_replace(void){
     if (I->read_only && !I->warned_read_only) {
         editor_set_status(STATUS_WARNING, "Changing a readonly file");
         I->warned_read_only = true;
@@ -642,7 +642,7 @@ void editor_start_mode_replace(){
     }
 }
 
-void editor_start_mode_insert(){
+void editor_start_mode_insert(void){
     if (I->read_only && !I->warned_read_only) {
         editor_set_status(STATUS_WARNING, "Changing a readonly file");
         I->warned_read_only = true;
@@ -653,19 +653,19 @@ void editor_start_mode_insert(){
     }
 }
 
-void editor_start_mode_visual(){
+void editor_start_mode_visual(void){
     unsigned int offset = editor_offset_at_cursor();
     I->selection.start = offset;
     I->selection.end   = offset;
 }
 
-void editor_start_mode_cursor(){
+void editor_start_mode_cursor(void){
 }
 
-void editor_start_mode_command(){
+void editor_start_mode_command(void){
 }
 
-void editor_start_mode_append() {
+void editor_start_mode_append(void) {
     if (I->read_only && !I->warned_read_only) {
         editor_set_status(STATUS_WARNING, "Changing a readonly file");
         I->warned_read_only = true;
@@ -786,7 +786,7 @@ void editor_render_status(HEDBuff* buff){
     term_clear_line_end_buff(buff);
 }
 
-void editor_refresh_screen(){
+void editor_refresh_screen(void){
 
     HEDBuff* buff = I->buff;
 
@@ -932,7 +932,7 @@ void editor_replace_repeat_last(int times){
 }
 
 
-void editor_replace_cursor_repeat(){
+void editor_replace_cursor_repeat(void){
 
     for(unsigned int r=0; r < I->repeat - 1; r++){
         for(unsigned int c=0; c < I->repeat_buff->len; c++){
@@ -941,7 +941,7 @@ void editor_replace_cursor_repeat(){
     }
 }
 
-void editor_replace_visual(){
+void editor_replace_visual(void){
 
     int c = read_key();
 
@@ -1096,7 +1096,7 @@ void editor_append_repeat_last(int times) {
     }
 }
 
-void editor_append_cursor_repeat() {
+void editor_append_cursor_repeat(void) {
     for(unsigned int r=0; r < I->repeat - 1; r++){
         for(unsigned int c=0; c < I->repeat_buff->len; c++){
             editor_append_cursor(I->repeat_buff->content[c]);
@@ -1115,7 +1115,7 @@ void editor_insert_repeat_last(int times) {
 
 }
 
-void editor_insert_cursor_repeat() {
+void editor_insert_cursor_repeat(void) {
     for(unsigned int r=0; r < I->repeat - 1; r++){
         for(unsigned int c=0; c < I->repeat_buff->len; c++){
             editor_insert_cursor(I->repeat_buff->content[c]);
@@ -1166,7 +1166,7 @@ void editor_delete_offset(unsigned int offset) {
     I->dirty = true;
 }
 
-void editor_delete_cursor(){
+void editor_delete_cursor(void){
     unsigned int offset = editor_offset_at_cursor();
     editor_delete_offset(offset);
     if(offset > 0 && offset == I->content_length){
@@ -1177,13 +1177,13 @@ void editor_delete_cursor(){
     I->dirty = true;
 }
 
-void editor_delete_cursor_repeat(){
+void editor_delete_cursor_repeat(void){
     for(unsigned int r=0; r < I->repeat; r++){
         editor_delete_cursor();
     }
 }
 
-void editor_delete_visual(){
+void editor_delete_visual(void){
     I->repeat = I->selection.end - I->selection.start + 1;
     for(int i= I->selection.start; i <= I->selection.end; i++){
         editor_delete_offset(I->selection.start);
@@ -1194,7 +1194,7 @@ void editor_delete_visual(){
 }
 
 
-void editor_reset_write_repeat(){
+void editor_reset_write_repeat(void){
     I->last_write_offset = -1;
 }
 
@@ -1220,7 +1220,7 @@ void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
 }
 
 
-void editor_repeat_last_action(){
+void editor_repeat_last_action(void){
 
     HEActionList *list = I->action_list;
     int times = I->repeat;
@@ -1237,7 +1237,7 @@ void editor_repeat_last_action(){
 
 }
 
-void editor_redo(){
+void editor_redo(void){
 
     HEActionList *list = I->action_list;
 
@@ -1291,7 +1291,7 @@ void editor_redo(){
 
 }
 
-void editor_undo(){
+void editor_undo(void){
 
     HEActionList *list = I->action_list;
 
@@ -1343,7 +1343,7 @@ void editor_undo(){
 
 }
 
-void editor_toggle_cursor(){
+void editor_toggle_cursor(void){
     I->in_ascii = (I->in_ascii == true) ? false: true;
 }
 
@@ -1362,7 +1362,7 @@ void editor_process_quit(bool force){
     exit(0);
 }
 
-void editor_process_command(){
+void editor_process_command(void){
 
     char* command = I->read_buff->content;
     int len = I->read_buff->len;
@@ -1459,7 +1459,7 @@ void editor_read_string(char *prompt){
     read_line(I->read_buff, prompt);
 }
 
-void editor_read_command(){
+void editor_read_command(void){
     editor_read_string(":");
 }
 
@@ -1557,7 +1557,7 @@ void editor_decrement_byte_cursor(int repeat){
 
 
 // Process the key pressed
-void editor_process_keypress(){
+void editor_process_keypress(void){
 
     char command[MAX_COMMAND];
     command[0] = '\0';
@@ -1826,8 +1826,9 @@ void editor_process_keypress(){
 
 }
 
-void editor_resize(){
-
+void editor_resize(int sig){
+    // this suppresses unused parameter warnings, without doing anything
+    (void)sig;
     // Get new terminal size
     term_get_size(&I->screen_rows, &I->screen_cols);
     // New bytes per line
@@ -1837,7 +1838,7 @@ void editor_resize(){
     editor_refresh_screen();
 }
 
-void editor_load_config_file() {
+void editor_load_config_file(void) {
 
     char *homedir;
     int c = 0;
@@ -1872,7 +1873,7 @@ void editor_load_config_file() {
     }
 }
 
-void editor_init(){
+void editor_init(void){
     I = malloc(sizeof(HEState));
     g_config = config_create_default();
     // Gets the terminal size
@@ -1943,7 +1944,7 @@ void editor_init(){
 }
 
 // Clears all buffers and exits the editor
-void editor_exit(){
+void editor_exit(void){
     if(I != NULL){
         if (I->buff != NULL){
             // Free the screen buff

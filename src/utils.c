@@ -42,7 +42,7 @@ void utils_hexstring_to_buff(HEDBuff* hexstr, HEDBuff* bytearray) {
 
 bool utils_hexonly(HEDBuff* hexstr) {
 
-    for (int i = 0; i < hexstr->len; i++) {
+    for (unsigned int i = 0; i < hexstr->len; i++) {
         if (!isxdigit(hexstr->content[i])) {
             return false;
         }

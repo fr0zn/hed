@@ -77,7 +77,7 @@ typedef enum {
  * @param      rows  Will contain the number of rows in the current terminal
  * @param      cols  Will contain the number of columns in the current terminal
  */
-void term_get_size(int* rows, int* cols);
+void term_get_size(unsigned int* rows, unsigned int* cols);
 
 /**
  * @brief      Prints data to the screen

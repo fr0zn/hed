@@ -3,6 +3,7 @@
 
 #include <termios.h>
 #include <stdbool.h>
+#include <sys/types.h>
 
 #include <hed_buff.h>
 #include <hed_utils.h>
@@ -34,8 +35,8 @@ enum status_message {
 };
 
 typedef struct {
-    int start;
-    int end;
+    off_t start;
+    off_t end;
     bool is_backwards;
 }HESelection;
 
@@ -45,8 +46,8 @@ typedef struct {
 // original terminal settings to restore on exit
 typedef struct {
 
-    int screen_rows; // Number of rows of the screen
-    int screen_cols; // Number of cols of the screen
+    unsigned int screen_rows; // Number of rows of the screen
+    unsigned int screen_cols; // Number of cols of the screen
 
     int cursor_x;
     int cursor_y;
@@ -58,7 +59,7 @@ typedef struct {
 
     unsigned int bytes_per_line;
 
-    int scrolled; // Lines scrolled
+    unsigned int scrolled; // Lines scrolled
 
     HESelection selection; // For visual mode
 
@@ -78,7 +79,7 @@ typedef struct {
 
     // Write
     byte_t last_byte;
-    unsigned int last_write_offset;
+    size_t last_write_offset;
 
     HEDByte *content;
     bool read_only;
@@ -92,7 +93,7 @@ typedef struct {
     char *file_name; // The name of the file we are working on
 
 
-    unsigned int content_length; // Stores the length of the file
+    size_t content_length; // Stores the length of the file
 
     struct termios term_original; // Stores the non raw terminal info
 

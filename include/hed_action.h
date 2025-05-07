@@ -17,7 +17,7 @@ typedef struct action_t{
     struct action_t *next;
 
     enum action_type type;
-    unsigned int offset;
+    size_t offset;
 
     HEDByte b; // Changed/modified byte (original)
 

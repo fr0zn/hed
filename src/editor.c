@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -93,7 +94,7 @@ void editor_open_file(char *filename){
             fclose(fp);
             return;
         }
-        for(int i = 0; i < count; i++){
+        for(size_t i = 0; i < count; i++){
             I->content[pos].o.value = c[i];
             I->content[pos].c.value = c[i];
             I->content[pos].is_original = true;
@@ -147,12 +148,12 @@ void editor_write_file(char* name){
 
 
 
-    int i;
+    size_t i;
     for(i = 0; i < I->content_length; i++){
         fwrite(&I->content[i].c, 1, 1, fp);
     }
 
-    editor_set_status(STATUS_INFO, "written %d bytes", i);
+    editor_set_status(STATUS_INFO, "written %zu bytes", i);
 
     I->dirty = false;
 
@@ -164,7 +165,7 @@ void editor_calculate_bytes_per_line(){
     // Calculate the maximum hex+ascii bytes that fits in the screen size
     // one byte = 2 chars
     int bytes_per_line = g_config->bytes_group; // Atleast write one byte group
-    int filled;
+    unsigned int filled;
 
     while((bytes_per_line / g_config->bytes_group) < g_config->groups_per_line)
     {
@@ -223,12 +224,12 @@ int editor_close_file() {
 }
 
 
-void editor_render_ascii(int row, unsigned int start, unsigned int len){
+void editor_render_ascii(unsigned int row, unsigned int start, unsigned int len){
 
     HEDBuff* buff = I->buff;
     int offset = start;
 
-    for(int i = 0; i < len; i++){
+    for(unsigned int i = 0; i < len; i++){
         // Get byte to write
         offset = start + i;
         if(I->content_length > 0) {
@@ -245,8 +246,8 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
         }
 
         // Cursor
-        if(I->cursor_y == row){
-            if(I->cursor_x == i){
+        if((unsigned int)I->cursor_y == row){
+            if((unsigned int)I->cursor_x == i){
                 if(I->in_ascii){
                     term_set_format_buff(buff, BG_YELLOW);
                     term_set_format_buff(buff, FG_BLACK);
@@ -322,7 +323,7 @@ void editor_check_scroll_top_limit(){
     }
 }
 
-void editor_cursor_offset_scroll(int offset){
+void editor_cursor_offset_scroll(unsigned int offset){
     if(offset > I->content_length){
         // Out of bounds
         return;
@@ -392,7 +393,7 @@ void editor_move_cursor(int dir, int amount){
         }
 
         // Stop right limit
-        if(I->cursor_x >= I->bytes_per_line){
+        if(I->cursor_x >= (int)I->bytes_per_line){
             I->cursor_y++;
             I->cursor_x = 0;
         }
@@ -402,7 +403,7 @@ void editor_move_cursor(int dir, int amount){
             I->cursor_y = 1;
         }
 
-        if(I->cursor_y > I->screen_rows - 2){
+        if((unsigned int)I->cursor_y > I->screen_rows - 2){
             I->cursor_y = I->screen_rows - 2;
             editor_scroll(1);
         }else if (I->cursor_y < 1 && I->scrolled > 0){
@@ -422,12 +423,13 @@ void editor_move_cursor(int dir, int amount){
 void editor_update_visual_selection(){
 
     unsigned int offset = editor_offset_at_cursor();
+    assert(offset <= INT_MAX);
 
     // If we moving backwards, the start of selection
-    if(offset <= I->selection.start && !I->selection.is_backwards){
+    if((int)offset <= I->selection.start && !I->selection.is_backwards){
         I->selection.end          = I->selection.start;
         I->selection.is_backwards = true;
-    }else if(offset >= I->selection.end && I->selection.is_backwards){
+    }else if((int)offset >= I->selection.end && I->selection.is_backwards){
     // If we are crossing forwards again
         I->selection.start        = I->selection.end;
         I->selection.is_backwards = false;
@@ -456,21 +458,21 @@ void editor_render_content(HEDBuff* buff){
 
     unsigned int line_offset_start = 0;
 
-    int row = 0;
+    unsigned int row = 0;
 
-    int offset;
+    off_t offset;
 
     chars_until_ascii = 10 + I->bytes_per_line * 2 + I->bytes_per_line/2;
 
-    int offset_start = I->scrolled * I->bytes_per_line;
+    unsigned int offset_start = I->scrolled * I->bytes_per_line;
 
     if(offset_start >= I->content_length){
         offset_start = I->content_length;
     }
 
     // ruler + status
-    int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2);
-    int offset_end = bytes_per_screen + offset_start;
+    unsigned int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2);
+    unsigned int offset_end = bytes_per_screen + offset_start;
 
     // Don't show more than content_length
     if(offset_end > I->content_length ){
@@ -517,8 +519,8 @@ void editor_render_content(HEDBuff* buff){
         }
 
         // Cursor
-        if(I->cursor_y == row){
-            if(I->cursor_x == line_bytes){
+        if((unsigned int)I->cursor_y == row){
+            if((unsigned int)I->cursor_x == line_bytes){
                 if(I->in_ascii){
                     term_set_format_buff(buff, FORMAT_INVERTED);
                 }else{
@@ -737,7 +739,7 @@ void editor_render_ruler(HEDBuff* buff) {
     term_set_format_buff(buff, FG_BLACK);
 
     // Create an empty line colored with the background
-    for(int i = 0; i < I->screen_cols; i++){
+    for(unsigned int i = 0; i < I->screen_cols; i++){
         buff_append(buff, " ", 1);
     }
 
@@ -774,7 +776,7 @@ void editor_render_status(HEDBuff* buff){
 
     editor_render_status_mode(buff);
 
-    int len = I->status_message->len;
+    unsigned int len = I->status_message->len;
     if (I->screen_cols <= len) {
         len = I->screen_cols;
         buff_append(buff, I->status_message->content, len-3);
@@ -923,7 +925,7 @@ void editor_replace_repeat_last(int times){
     if (!I->in_ascii) {
         I->repeat /= 2;
     }
-    for(int c=0; c < I->repeat_buff->len; c++){
+    for(unsigned int c=0; c < I->repeat_buff->len; c++){
         editor_replace_cursor(I->repeat_buff->content[c]);
     }
 
@@ -932,8 +934,8 @@ void editor_replace_repeat_last(int times){
 
 void editor_replace_cursor_repeat(){
 
-    for(int r=0; r < I->repeat - 1; r++){
-        for(int c=0; c < I->repeat_buff->len; c++){
+    for(unsigned int r=0; r < I->repeat - 1; r++){
+        for(unsigned int c=0; c < I->repeat_buff->len; c++){
             editor_replace_cursor(I->repeat_buff->content[c]);
         }
     }
@@ -1089,14 +1091,14 @@ void editor_append_repeat_last(int times) {
     if (!I->in_ascii) {
         I->repeat /= 2;
     }
-    for(int c=0; c < I->repeat_buff->len; c++){
+    for(unsigned int c=0; c < I->repeat_buff->len; c++){
         editor_append_cursor(I->repeat_buff->content[c]);
     }
 }
 
 void editor_append_cursor_repeat() {
-    for(int r=0; r < I->repeat - 1; r++){
-        for(int c=0; c < I->repeat_buff->len; c++){
+    for(unsigned int r=0; r < I->repeat - 1; r++){
+        for(unsigned int c=0; c < I->repeat_buff->len; c++){
             editor_append_cursor(I->repeat_buff->content[c]);
         }
     }
@@ -1107,15 +1109,15 @@ void editor_insert_repeat_last(int times) {
     if (!I->in_ascii) {
         I->repeat /= 2;
     }
-    for(int c=0; c < I->repeat_buff->len; c++){
+    for(unsigned int c=0; c < I->repeat_buff->len; c++){
         editor_insert_cursor(I->repeat_buff->content[c]);
     }
 
 }
 
 void editor_insert_cursor_repeat() {
-    for(int r=0; r < I->repeat - 1; r++){
-        for(int c=0; c < I->repeat_buff->len; c++){
+    for(unsigned int r=0; r < I->repeat - 1; r++){
+        for(unsigned int c=0; c < I->repeat_buff->len; c++){
             editor_insert_cursor(I->repeat_buff->content[c]);
         }
     }
@@ -1176,7 +1178,7 @@ void editor_delete_cursor(){
 }
 
 void editor_delete_cursor_repeat(){
-    for(int r=0; r < I->repeat; r++){
+    for(unsigned int r=0; r < I->repeat; r++){
         editor_delete_cursor();
     }
 }
@@ -1245,7 +1247,7 @@ void editor_redo(){
         return;
     }
 
-    for(int i = 0; i < I->repeat; i++){
+    for(unsigned int i = 0; i < I->repeat; i++){
 
         // Undo multiple actions
         // We start from action base. To redo the last change we have to go to
@@ -1299,7 +1301,7 @@ void editor_undo(){
         return;
     }
 
-    for(int i = 0; i < I->repeat; i++){
+    for(size_t i = 0; i < I->repeat; i++){
 
         // Undo multiple actions
         int repeat = list->current->repeat;

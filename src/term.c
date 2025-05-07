@@ -7,7 +7,7 @@
 #include <hed_buff.h>
 
 
-void term_get_size(int* rows, int* cols){
+void term_get_size(unsigned int* rows, unsigned int* cols){
 
     struct winsize ws;
 

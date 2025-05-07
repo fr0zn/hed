@@ -1845,6 +1845,10 @@ void editor_load_config_file() {
     }
     if (homedir != NULL){
         char* config_path = malloc(strlen(homedir) + 10);
+        if (config_path == NULL) {
+            perror("Failed to allocate space for config path");
+            exit(1);
+        }
         strcpy(config_path, homedir);
         strcpy(config_path + strlen(homedir), "/.hedrc");
         if( access( config_path, F_OK ) != -1 ) {
@@ -1881,6 +1885,10 @@ void editor_init(){
     I->content = malloc(1024*sizeof(HEDByte));
     I->content_length = 0;
     I->file_name = malloc(128);
+    if (I->file_name == NULL) {
+        perror("Failed ot allocate space for file name");
+        exit(1);
+    }
     I->file_name[0] = 0;
 
     // Set HEState variables

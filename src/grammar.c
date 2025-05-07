@@ -9,8 +9,16 @@
 
 HEGrammarList* grammar_list_create(){
     HEGrammarList *list = malloc(sizeof(HEGrammarList));
+    if (list == NULL) {
+        perror("Failed to allocate grammar list");
+        exit(1);
+    }
 
     list->content = malloc(GRAMMAR_LIST_DEFAULT_SIZE * sizeof(HEGrammar));
+    if (list->content == NULL) {
+        perror("Failed to allocate grammar list content");
+        exit(1);
+    }
 
     list->len = 0;
     list->capacity = GRAMMAR_LIST_DEFAULT_SIZE;

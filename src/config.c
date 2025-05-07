@@ -15,6 +15,10 @@
 
 HEDConfig* config_create_default() {
     HEDConfig* conf = malloc(sizeof(HEDConfig));
+    if (conf == NULL) {
+        perror("Failed to allocate memory for config:");
+        exit(1);
+    }
     conf->bytes_group = 2;
     conf->groups_per_line = 8;
     conf->insert_nibble = 0;
@@ -149,6 +153,10 @@ void config_parse_line_key_value(HEDBuff* original_line,
 
     char *token;
     char *line = malloc(original_line->len+1);
+    if (line == NULL) {
+        perror("Failed to allocate memory: ");
+        exit(1);
+    }
     char *to_free = line;
 
     strncpy(line, original_line->content, original_line->len);

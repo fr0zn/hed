@@ -63,27 +63,13 @@ void editor_open_file(char *filename){
     if (filename == NULL) {
         return;
     }
+    struct stat fileinfo;
+    stat(filename, &fileinfo);
+    size_t size = fileinfo.st_size;
 
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL){
         editor_set_status(STATUS_ERROR, "Cannot open file");
-        return;
-    }
-
-    if (fseek(fp, 0, SEEK_END)) {
-        editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
-        fclose(fp);
-        return;
-    }
-    long size = ftell(fp);
-    if (size == -1) {
-        editor_set_status(STATUS_ERROR, "Failed to obtain offset of end of file");
-        fclose(fp);
-        return;
-    }
-    if (fseek(fp, 0, SEEK_SET)) {
-        editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
-        fclose(fp);
         return;
     }
 

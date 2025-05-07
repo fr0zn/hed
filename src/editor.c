@@ -1196,7 +1196,7 @@ void editor_reset_write_repeat(){
     I->last_write_offset = -1;
 }
 
-void editor_redo_delete_offset(unsigned int offset, HEDByte b){
+void editor_redo_delete_offset(unsigned int offset){
     memmove(&I->content[offset], &I->content[offset+1],
         (I->content_length - offset-1)*sizeof(HEDByte));
     I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
@@ -1273,7 +1273,7 @@ void editor_redo(){
                     editor_cursor_offset_scroll(offset);
                     break;
                 case ACTION_DELETE:
-                    editor_redo_delete_offset(offset, b); break;
+                    editor_redo_delete_offset(offset); break;
                 case ACTION_APPEND:
                     editor_redo_insert_offset(offset, b);
                     editor_cursor_offset_scroll(offset + 1);

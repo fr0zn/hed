@@ -76,6 +76,11 @@ void editor_open_file(char *filename){
         return;
     }
     long size = ftell(fp);
+    if (size == -1) {
+        editor_set_status(STATUS_ERROR, "Failed to obtain offset of end of file");
+        fclose(fp);
+        return;
+    }
     if (fseek(fp, 0, SEEK_SET)) {
         editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
         fclose(fp);

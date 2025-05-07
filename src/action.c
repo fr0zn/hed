@@ -4,12 +4,17 @@
 #include <stdarg.h>
 
 #include <hed_action.h>
+#include <hed_utils.h>
 
 void action_add(HEActionList *list, enum action_type type, unsigned int offset,
     HEDByte byte, int repeat){
 
 
     HEAction *action = malloc(sizeof(HEAction));
+    if (action == NULL) {
+        perror("failed to allocate memory for action: ");
+        exit(1);
+    }
     action->type   = type;
     action->offset = offset;
     action->b      = byte;
@@ -48,6 +53,10 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset,
 
 HEActionList* action_list_init(){
     HEActionList * a_list = malloc(sizeof(HEActionList));
+    if (a_list == NULL) {
+        perror("failed to allocate memory for action list: ");
+        exit(1);
+    }
     a_list->first   = NULL;
     a_list->last    = NULL;
     a_list->current = NULL;

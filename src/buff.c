@@ -9,17 +9,21 @@
 HEDBuff* buff_create(){
 
     HEDBuff *buff = malloc(sizeof(HEDBuff));
-
-    if(buff){
-        buff->content  = malloc(HEDBUFF_DEFAULT_CAPACITY);
-        buff->len      = 0;
-        buff->capacity = HEDBUFF_DEFAULT_CAPACITY;
-        // Make sure empty string of len 0
-        buff->content[0] = 0;
-        return buff;
-    }else{
+    if(buff == NULL) {
+        perror("failed to allocate memory for buffer: ");
         exit(1);
     }
+
+    buff->content  = malloc(HEDBUFF_DEFAULT_CAPACITY);
+    if(buff->content == NULL) {
+        perror("failed to allocate memory for buffer: ");
+        exit(1);
+    }
+    buff->len      = 0;
+    buff->capacity = HEDBUFF_DEFAULT_CAPACITY;
+    // Make sure empty string of len 0
+    buff->content[0] = 0;
+    return buff;
 }
 
 void buff_remove(HEDBuff* buff){

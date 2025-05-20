@@ -1988,7 +1988,6 @@ void editor_exit(void){
 
     if (g_hestate.grammars != NULL){
         grammar_cleanup(g_hestate.grammars);
-        free(g_hestate.grammars);
         g_hestate.grammars = NULL;
     }
 

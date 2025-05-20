@@ -64,5 +64,6 @@ void grammar_cleanup(HEGrammarList *list) {
         if (list->content != NULL) {
             free(list->content);
         }
+        free(list);
     }
 }

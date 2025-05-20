@@ -48,5 +48,5 @@ enum color_bg grammar_color_id(HEGrammarList* list, int id);
 
 HEGrammar* grammar_id(HEGrammarList* list, int id);
 
-
+void grammar_cleanup(HEGrammarList *list);
 #endif

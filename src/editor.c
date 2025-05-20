@@ -1981,6 +1981,12 @@ void editor_exit(void){
         g_hestate.action_list = NULL;
     }
 
+    if (g_hestate.grammars != NULL){
+        grammar_cleanup(g_hestate.grammars);
+        free(g_hestate.grammars);
+        g_hestate.grammars = NULL;
+    }
+
     term_clear_screen();
 
     // Exit raw mode

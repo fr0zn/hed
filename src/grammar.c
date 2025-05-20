@@ -50,3 +50,14 @@ enum color_bg grammar_color_id(HEGrammarList* list, int id){
     }
     return COLOR_NOCOLOR;
 }
+
+void grammar_cleanup(HEGrammarList *list) {
+    if (list != NULL) {
+        if (list->free_ids != NULL) {
+            free(list->free_ids);
+        }
+        if (list->content != NULL) {
+            free(list->content);
+        }
+    }
+}

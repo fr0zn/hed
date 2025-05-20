@@ -10,6 +10,8 @@ OBJ_DIR = obj
 SRC = $(wildcard $(SRC_DIR)/*.c)
 OBJ = $(SRC:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 
+PREFIX = /usr/local
+
 CPPFLAGS += -Iinclude -DHED_GIT_HASH=\"$(git_hash)\"
 CPPFLAGS += -DHED_VERSION=\"$(version)\" -DHED_VERSION_SHORT=\"$(version_short)\"
 CFLAGS += -Wall
@@ -22,8 +24,8 @@ debug: CFLAGS += -g -DDEBUG
 debug: $(EXE)
 
 install:
-	@install -m 755 $(EXE) /usr/local/bin
-	@install -m 644 hed.1 /usr/local/share/man/man1
+	@install -m 755 $(EXE) $(PREFIX)/bin
+	@install -m 644 hed.1 $(PREFIX)/share/man/man1
 
 $(EXE): $(OBJ)
 	@$(CC) $(CPPFLAGS) $(LDFLAGS) $^ -o $@

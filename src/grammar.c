@@ -24,6 +24,11 @@ HEGrammarList* grammar_list_create(void){
     list->capacity = GRAMMAR_LIST_DEFAULT_SIZE;
 
     list->free_ids = malloc(GRAMMAR_LIST_DEFAULT_SIZE);
+    if (list->free_ids == NULL) {
+        perror("Failed to allocate grammar list free_ids");
+        exit(1);
+    }
+    
     list->free_len = 0;
     list->free_capacity = GRAMMAR_LIST_DEFAULT_SIZE;
 

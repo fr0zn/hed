@@ -113,7 +113,7 @@ void term_disable_raw(struct termios* term_original) {
 
 void term_clear_screen(void){
     // Reset color \x1b[0m
-    // Move top-left line \x1b\[H
+    // Move top-left line \x1b[H
     // Clear until the bottom of the screen \x1b[2J
-    term_print("\x1b[0m\x1b\[H\x1b[2J", 11);
+    term_print("\x1b[0m\x1b[H\x1b[2J", 11);
 }

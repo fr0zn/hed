@@ -1941,26 +1941,44 @@ void editor_init(void){
 
 // Clears all buffers and exits the editor
 void editor_exit(void){
+    if (g_hestate.read_buff != NULL){
+        buff_remove(g_hestate.read_buff);
+        g_hestate.read_buff = NULL;
+    }
+    if (g_hestate.search_buff != NULL){
+        buff_remove(g_hestate.search_buff);
+        g_hestate.search_buff = NULL;
+    }
+    if (g_hestate.repeat_buff != NULL){
+        buff_remove(g_hestate.repeat_buff);
+        g_hestate.repeat_buff = NULL;
+    }
     if (g_hestate.buff != NULL){
         // Free the screen buff
         buff_remove(g_hestate.buff);
+        g_hestate.buff = NULL;
     }
     if (g_hestate.content != NULL){
         // Free the read file content
         free(g_hestate.content);
+        g_hestate.content = NULL;
     }
     if (g_hestate.file_name != NULL){
         // Free the filename
         free(g_hestate.file_name);
+        g_hestate.file_name = NULL;
     }
     if (g_hestate.status_message != NULL){
         // Free the status_mesasge
         free(g_hestate.status_message);
+        g_hestate.status_message = NULL;
     }
+
     if (g_hestate.action_list != NULL){
         // Free the action list items, then free the action list itself
         action_cleanup(g_hestate.action_list);
         free(g_hestate.action_list);
+        g_hestate.action_list = NULL;
     }
 
     term_clear_screen();

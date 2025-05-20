@@ -73,8 +73,9 @@ void action_cleanup(HEActionList *list) {
     HEAction *prev;
     HEAction *action = list->last;
 
-    while ((prev = action->prev) != NULL) {
+    do {
+        prev = action->prev;
         free(action);
         action = prev;
-    }
+    } while (action != NULL);
 }

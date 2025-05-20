@@ -34,3 +34,4 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 
 clean:
 	@$(RM) $(OBJ)
+	@$(RM) $(EXE)

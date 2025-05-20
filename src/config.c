@@ -13,17 +13,11 @@
 #include <hed_buff.h>
 #include <hed_editor.h>
 
-HEDConfig* config_create_default() {
-    HEDConfig* conf = malloc(sizeof(HEDConfig));
-    if (conf == NULL) {
-        perror("Failed to allocate memory for config:");
-        exit(1);
-    }
-    conf->bytes_group = 2;
-    conf->groups_per_line = 8;
-    conf->insert_nibble = 0;
-    conf->replace_nibble = 1;
-    return conf;
+void config_init(HEDConfig *config) {
+    config->bytes_group = 2;
+    config->groups_per_line = 8;
+    config->insert_nibble = 0;
+    config->replace_nibble = 1;
 }
 
 char* config_open(char* filename){

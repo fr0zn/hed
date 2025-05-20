@@ -1958,6 +1958,11 @@ void editor_exit(void){
         buff_remove(g_hestate.buff);
         g_hestate.buff = NULL;
     }
+    if (g_hestate.status_message != NULL){
+        // Free the status_mesasge
+        buff_remove(g_hestate.status_message);
+        g_hestate.status_message = NULL;
+    }
     if (g_hestate.content != NULL){
         // Free the read file content
         free(g_hestate.content);
@@ -1970,7 +1975,7 @@ void editor_exit(void){
     }
     if (g_hestate.status_message != NULL){
         // Free the status_mesasge
-        free(g_hestate.status_message);
+        buff_remove(g_hestate.status_message);
         g_hestate.status_message = NULL;
     }
 

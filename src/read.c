@@ -1,5 +1,3 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -16,7 +14,7 @@
 // The values for an specific keyboard can be optained with the
 // python script `helpers/key_code.py`
 //
-KEY_CODE read_key() {
+KEY_CODE read_key(void) {
     char c;
     ssize_t nread;
 

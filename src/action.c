@@ -4,38 +4,17 @@
 #include <stdarg.h>
 
 #include <hed_action.h>
-
-static const char* action_names[] = {
-        "base",
-        "replace",
-        "insert",
-        "delete",
-        "append"
-};
-
-void action_list_print(HEActionList* list) {
-    HEAction* node = list->first;
-    if (node == NULL) {
-        fprintf(stderr, "Nothing to delete, head is null\n");
-        return;
-    }
-    while (node != NULL) {
-        if (node == list->current) {
-            fprintf(stderr, "CURRENT: ");
-        }
-        fprintf(stderr, "(%d, %s, %02x-%02x [%d]) -> ", node->offset, action_names[node->type], node->b.o.value, node->b.c.value, node->repeat );
-        node = node->next;
-        if (node == NULL) {
-            fprintf(stderr, "END\n");
-        }
-    }
-}
+#include <hed_utils.h>
 
 void action_add(HEActionList *list, enum action_type type, unsigned int offset,
     HEDByte byte, int repeat){
 
 
     HEAction *action = malloc(sizeof(HEAction));
+    if (action == NULL) {
+        perror("failed to allocate memory for action: ");
+        exit(1);
+    }
     action->type   = type;
     action->offset = offset;
     action->b      = byte;
@@ -70,11 +49,14 @@ void action_add(HEActionList *list, enum action_type type, unsigned int offset,
     list->last    = action;
     list->current = action;
 
-    //action_list_print(list);
 }
 
-HEActionList* action_list_init(){
+HEActionList* action_list_init(void){
     HEActionList * a_list = malloc(sizeof(HEActionList));
+    if (a_list == NULL) {
+        perror("failed to allocate memory for action list: ");
+        exit(1);
+    }
     a_list->first   = NULL;
     a_list->last    = NULL;
     a_list->current = NULL;
@@ -82,4 +64,18 @@ HEActionList* action_list_init(){
     action_add(a_list, ACTION_BASE, 0, (HEDByte){{0},{0},false, 0}, 0); // Add one base action
 
     return a_list;
+}
+
+void action_cleanup(HEActionList *list) {
+    if(list == NULL || list->last == NULL) {
+        return;
+    }
+    HEAction *prev;
+    HEAction *action = list->last;
+
+    do {
+        prev = action->prev;
+        free(action);
+        action = prev;
+    } while (action != NULL);
 }

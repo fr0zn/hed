@@ -13,13 +13,11 @@
 #include <hed_buff.h>
 #include <hed_editor.h>
 
-HEDConfig* config_create_default() {
-    HEDConfig* conf = malloc(sizeof(HEDConfig));
-    conf->bytes_group = 2;
-    conf->groups_per_line = 8;
-    conf->insert_nibble = 0;
-    conf->replace_nibble = 1;
-    return conf;
+void config_init(HEDConfig *config) {
+    config->bytes_group = 2;
+    config->groups_per_line = 8;
+    config->insert_nibble = 0;
+    config->replace_nibble = 1;
 }
 
 char* config_open(char* filename){
@@ -33,15 +31,18 @@ char* config_open(char* filename){
 
     struct stat statbuf;
     if(stat(filename, &statbuf) == -1) {
+        fclose(fp);
         return NULL;
     }
 
     if (!S_ISREG(statbuf.st_mode)) {
+        fclose(fp);
         fprintf(stderr, "File '%s' is not a regular file\n", filename);
         return NULL;
     }
 
     if (statbuf.st_size == 0) {
+        fclose(fp);
         return NULL;
     }
 
@@ -73,9 +74,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if( value_int == 0 ){
-                error = 2;
-            } else {
+            if( value_int ){
                 config->bytes_group = value_int;
                 return 0;
             }
@@ -86,9 +85,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if( value_int == 0 ){
-                error = 2;
-            } else {
+            if( value_int ){
                 config->groups_per_line = value_int;
                 return 0;
             }
@@ -100,9 +97,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if ( (value_int != 0) && (value_int != 1) ){
-                error = 2;
-            } else {
+            if ( (value_int == 0) || (value_int == 1) ){
                 config->insert_nibble = value_int;
                 return 0;
             }
@@ -113,9 +108,7 @@ int config_update_key_value(HEDConfig* config, HEDBuff* key, HEDBuff* value) {
 
         if (numbers_only(v)){
             int value_int = atoi(v);
-            if( (value_int != 0) && (value_int != 1)){
-                error = 2;
-            } else {
+            if( (value_int == 0) || (value_int == 1)){
                 config->replace_nibble = value_int;
                 return 0;
             }
@@ -154,6 +147,10 @@ void config_parse_line_key_value(HEDBuff* original_line,
 
     char *token;
     char *line = malloc(original_line->len+1);
+    if (line == NULL) {
+        perror("Failed to allocate memory: ");
+        exit(1);
+    }
     char *to_free = line;
 
     strncpy(line, original_line->content, original_line->len);

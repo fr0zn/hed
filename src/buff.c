@@ -1,6 +1,4 @@
-#include <ctype.h>
 #include <unistd.h>
-#include <errno.h>
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -8,27 +6,31 @@
 #include <hed_buff.h>
 
 // Allocate and initialize a HEDBuff with default size data
-HEDBuff* buff_create(){
+HEDBuff* buff_create(void){
 
     HEDBuff *buff = malloc(sizeof(HEDBuff));
-
-    if(buff){
-        buff->content  = malloc(HEDBUFF_DEFAULT_CAPACITY);
-        buff->len      = 0;
-        buff->capacity = HEDBUFF_DEFAULT_CAPACITY;
-        // Make sure empty string of len 0
-        buff->content[0] = 0;
-        return buff;
-    }else{
+    if(buff == NULL) {
+        perror("failed to allocate memory for buffer: ");
         exit(1);
     }
+
+    buff->content  = malloc(HEDBUFF_DEFAULT_CAPACITY);
+    if(buff->content == NULL) {
+        perror("failed to allocate memory for buffer: ");
+        exit(1);
+    }
+    buff->len      = 0;
+    buff->capacity = HEDBUFF_DEFAULT_CAPACITY;
+    // Make sure empty string of len 0
+    buff->content[0] = 0;
+    return buff;
 }
 
 void buff_remove(HEDBuff* buff){
-    if(buff->content != NULL){
-        free(buff->content);
-    }
     if(buff != NULL){
+        if(buff->content != NULL){
+            free(buff->content);
+        }
         free(buff);
     }
 }
@@ -56,19 +58,6 @@ void buff_delete_last(HEDBuff* buff){
     }
 }
 
-void buff_trim(HEDBuff* buff) {
-    char* p = buff->content;
-
-    if (buff->len <= 0){
-        return;
-    }
-
-    while(isspace(p[buff->len - 1])) p[--buff->len] = 0;
-    while(*p && isspace(* p)) ++p, --buff->len;
-
-    memmove(buff->content, p, buff->len + 1);
-}
-
 // Appends `to_append` to the HEDBuff content and reallocates in case is needed
 void buff_append(HEDBuff* buff, const char* to_append, size_t len) {
 
@@ -90,11 +79,6 @@ void buff_append(HEDBuff* buff, const char* to_append, size_t len) {
     buff->content[buff->len] = 0;
 }
 
-// Creates a copy of itself
-HEDBuff* buff_copy(HEDBuff* buff) {
-    return NULL;
-}
-
 int buff_vappendf(HEDBuff* buff, const char* fmt, ...) {
 
     char buffer[HEDBUFF_DEFAULT_CAPACITY];
@@ -105,8 +89,4 @@ int buff_vappendf(HEDBuff* buff, const char* fmt, ...) {
 
     buff_append(buff, buffer, len);
     return len;
-}
-
-void buff_append_buff(HEDBuff* buff, HEDBuff* buff_to_append) {
-    buff_append(buff, buff_to_append->content, buff_to_append->len);
 }

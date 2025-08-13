@@ -77,7 +77,7 @@ typedef enum {
  * @param      rows  Will contain the number of rows in the current terminal
  * @param      cols  Will contain the number of columns in the current terminal
  */
-void term_get_size(int* rows, int* cols);
+void term_get_size(unsigned int* rows, unsigned int* cols);
 
 /**
  * @brief      Prints data to the screen
@@ -88,13 +88,6 @@ void term_get_size(int* rows, int* cols);
  * @param      len   The length of the data
  */
 void term_print(const char *data, ssize_t len);
-
-/**
- * @brief      Prints a HEBuff to the screen
- *
- * @param      buff  The buffer to be printed (see `include/hed_buff.h`)
- */
-void term_print_buff(HEDBuff* buff);
 
 /**
  * @brief      Sets the color or format on the terminal but instead of
@@ -122,28 +115,12 @@ int term_set_format(int format_color);
 /**
  * @brief      Hides the cursor from the terminal screen
  */
-void term_cursor_hide();
-
-/**
- * @brief      Hides the cursor from the terminal screen appending the data
- *             to a HEDBuff (see `include/hed_buff.h`)
- *
- * @param      buff  The buffer
- */
-void term_cursor_hide_buff(HEDBuff* buff);
+void term_cursor_hide(void);
 
 /**
  * @brief      Shows the cursor from the terminal screen
  */
-void term_cursor_show();
-
-/**
- * @brief      Hides the cursor from the terminal screen appending the data
- *             to a HEDBuff (see `include/hed_buff.h`)
- *
- * @param      buff  The buffer
- */
-void term_cursor_show_buff(HEDBuff* buff);
+void term_cursor_show(void);
 
 /**
  * @brief      Moves the cursor to position (x, y)
@@ -164,11 +141,6 @@ void term_goto(unsigned int row, unsigned int col);
 void term_goto_buff(HEDBuff* buff, unsigned int row, unsigned int col);
 
 /**
- * @brief      Clears the terminal current line
- */
-void term_clear_line();
-
-/**
  * @brief      Clears the terminal current line but instead of printing
  *             the corresponding escape sequence appends the data to a
  *             HEDBuff (see `include/hed_buff.h`)
@@ -181,7 +153,7 @@ void term_clear_line_buff(HEDBuff* buff);
  * @brief      Clears the terminal from the current position until the end of
  *             the current line
  */
-void term_clear_line_end();
+void term_clear_line_end(void);
 
 /**
  * @brief      Clears the terminal from the current position until the end of
@@ -227,7 +199,7 @@ void term_disable_raw(struct termios* term_original);
  * of the screen and clearing it until the end
  *
  */
-void term_clear_screen();
+void term_clear_screen(void);
 
 // Prints a char array
 

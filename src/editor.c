@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -17,11 +19,8 @@
 #include <hed_read.h>
 #include <hed_search.h>
 
-
-static HEState *g_hestate = NULL;
-static HEDConfig* g_config;
-// Instance as I
-#define I g_hestate
+static HEState g_hestate;
+static HEDConfig g_config;
 
 #define LEN_OFFSET 9
 #define PADDING 1
@@ -33,17 +32,17 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
     char buff[MAX_STATUS_BAR];
 
     // We control the len on print
-    buff_clear_dirty(I->status_message);
+    buff_clear_dirty(g_hestate.status_message);
     // Clear line
-    term_clear_line_end_buff(I->status_message);
+    term_clear_line_end_buff(g_hestate.status_message);
 
     switch(type){
         case STATUS_INFO:
-            term_set_format_buff(I->status_message, FG_BLUE); break;
+            term_set_format_buff(g_hestate.status_message, FG_BLUE); break;
         case STATUS_WARNING:
-            term_set_format_buff(I->status_message, FG_YELLOW); break;
+            term_set_format_buff(g_hestate.status_message, FG_YELLOW); break;
         case STATUS_ERROR:
-            term_set_format_buff(I->status_message, FG_RED); break;
+            term_set_format_buff(g_hestate.status_message, FG_RED); break;
     }
 
     va_list ap;
@@ -51,9 +50,9 @@ void editor_set_status(enum status_message type, const char *fmt, ...){
     int x = vsnprintf(buff, MAX_STATUS_BAR, fmt, ap);
     va_end(ap);
 
-    buff_append(I->status_message, buff, x);
+    buff_append(g_hestate.status_message, buff, x);
 
-    term_set_format_buff(I->status_message, FORMAT_RESET);
+    term_set_format_buff(g_hestate.status_message, FORMAT_RESET);
 
 }
 
@@ -62,6 +61,9 @@ void editor_open_file(char *filename){
     if (filename == NULL) {
         return;
     }
+    struct stat fileinfo;
+    stat(filename, &fileinfo);
+    size_t size = fileinfo.st_size;
 
     FILE *fp = fopen(filename, "rb");
     if (fp == NULL){
@@ -69,33 +71,31 @@ void editor_open_file(char *filename){
         return;
     }
 
-    if (fseek(fp, 0, SEEK_END)) {
-        editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
-        return;
-    }
-    long size = ftell(fp);
-    if (fseek(fp, 0, SEEK_SET)) {
-        editor_set_status(STATUS_ERROR, "Failed to seek to end of file");
-        return;
-    }
+    g_hestate.init_msg = true;
 
-    I->init_msg = true;
+    g_hestate.content = realloc(g_hestate.content, size*sizeof(HEDByte));
 
-    I->content = realloc(I->content, size*sizeof(HEDByte));
+    strncpy(g_hestate.file_name, filename, 128);
 
-    strncpy(I->file_name, filename, 128);
-
-    I->content_length = size;
+    g_hestate.content_length = size;
 
     uint8_t c[4096];
     size_t pos = 0;
     while (pos < size) {
         size_t count = fread(c, sizeof(uint8_t), sizeof(c), fp);
-        for(int i = 0; i < count; i++){
-            I->content[pos].o.value = c[i];
-            I->content[pos].c.value = c[i];
-            I->content[pos].is_original = true;
-            I->content[pos].g = -1;
+        if (count != 4096 && count < size - pos) {
+            if (ferror(fp)) {
+                editor_set_status(STATUS_ERROR, "Failed to read file: %s",
+                    strerror(errno));
+            }
+            fclose(fp);
+            return;
+        }
+        for(size_t i = 0; i < count; i++){
+            g_hestate.content[pos].o.value = c[i];
+            g_hestate.content[pos].c.value = c[i];
+            g_hestate.content[pos].is_original = true;
+            g_hestate.content[pos].g = -1;
             ++pos;
         }
     }
@@ -103,12 +103,12 @@ void editor_open_file(char *filename){
     // Check if the file is readonly, and warn the user about that.
     if (access(filename, W_OK) == -1) {
         editor_set_status(STATUS_WARNING, "\"%s\" (%d bytes) [readonly]",
-            I->file_name, I->content_length);
-        I->read_only = true;
+            g_hestate.file_name, g_hestate.content_length);
+        g_hestate.read_only = true;
     } else {
         editor_set_status(STATUS_INFO, "\"%s\" (%d bytes)",
-            I->file_name, I->content_length);
-        I->read_only = false;
+            g_hestate.file_name, g_hestate.content_length);
+        g_hestate.read_only = false;
     }
 
     fclose(fp);
@@ -126,18 +126,18 @@ void editor_write_file(char* name){
                 name, strerror(errno));
             return;
         }
-        strncpy(I->file_name, name, 128);
+        strncpy(g_hestate.file_name, name, 128);
     } else {
         // If no argument try to save to the previous opened file, if any
-        if (strlen(I->file_name) == 0) {
+        if (strlen(g_hestate.file_name) == 0) {
             editor_set_status(STATUS_ERROR, "No file name");
             return;
         } else {
-            fp = fopen(I->file_name, "wb");
+            fp = fopen(g_hestate.file_name, "wb");
             if (fp == NULL){
                 editor_set_status(STATUS_ERROR,
                     "Unable to open '%s' for writing: %s",
-                    I->file_name, strerror(errno));
+                    g_hestate.file_name, strerror(errno));
                 return;
             }
         }
@@ -145,38 +145,38 @@ void editor_write_file(char* name){
 
 
 
-    int i;
-    for(i = 0; i < I->content_length; i++){
-        fwrite(&I->content[i].c, 1, 1, fp);
+    size_t i;
+    for(i = 0; i < g_hestate.content_length; i++){
+        fwrite(&g_hestate.content[i].c, 1, 1, fp);
     }
 
-    editor_set_status(STATUS_INFO, "written %d bytes", i);
+    editor_set_status(STATUS_INFO, "written %zu bytes", i);
 
-    I->dirty = false;
+    g_hestate.dirty = false;
 
     fclose(fp);
 }
 
-void editor_calculate_bytes_per_line(){
+void editor_calculate_bytes_per_line(void){
 
     // Calculate the maximum hex+ascii bytes that fits in the screen size
     // one byte = 2 chars
-    int bytes_per_line = g_config->bytes_group; // Atleast write one byte group
-    int filled;
+    int bytes_per_line = g_config.bytes_group; // Atleast write one byte group
+    unsigned int filled;
 
-    while((bytes_per_line / g_config->bytes_group) < g_config->groups_per_line)
+    while((bytes_per_line / g_config.bytes_group) < g_config.groups_per_line)
     {
-        bytes_per_line += g_config->bytes_group;
+        bytes_per_line += g_config.bytes_group;
         filled = 10 + bytes_per_line * 2
-            + (bytes_per_line/g_config->bytes_group) * PADDING + bytes_per_line;
-        if (filled >= I->screen_cols){
-            bytes_per_line -= g_config->bytes_group;
+            + (bytes_per_line/g_config.bytes_group) * PADDING + bytes_per_line;
+        if (filled >= g_hestate.screen_cols){
+            bytes_per_line -= g_config.bytes_group;
             break;
         }
 
     }
 
-    I->bytes_per_line = bytes_per_line;
+    g_hestate.bytes_per_line = bytes_per_line;
 }
 
 void editor_command_set_run(HEDBuff* cmd) {
@@ -186,7 +186,7 @@ void editor_command_set_run(HEDBuff* cmd) {
     if (cmd->len > 0){
         config_parse_line_key_value(cmd, key, value);
         if (key->len > 0){
-            int ret = config_update_key_value(g_config, key, value);
+            int ret = config_update_key_value(&g_config, key, value);
             if (ret == 0) {
                 editor_set_status(STATUS_INFO, "Set '%s', to '%s'",
                     key->content, value->content);
@@ -207,47 +207,45 @@ void editor_command_set_run(HEDBuff* cmd) {
 
 }
 
-int editor_close_file() {
-    if(I->dirty){
+int editor_close_file(void) {
+    if(g_hestate.dirty){
         editor_set_status(STATUS_ERROR, "No write since last change");
         return 0;
     }
 
-    I->file_name[0] = 0;
+    g_hestate.file_name[0] = 0;
 
-    I->content_length = 0;
+    g_hestate.content_length = 0;
 
     return 1;
 }
 
 
-void editor_render_ascii(int row, unsigned int start, unsigned int len){
+void editor_render_ascii(unsigned int row, unsigned int start, unsigned int len){
 
-    HEDByte *c;
-    HEDBuff* buff = I->buff;
+    HEDBuff* buff = g_hestate.buff;
     int offset = start;
 
-    for(int i = 0; i < len; i++){
+    for(unsigned int i = 0; i < len; i++){
         // Get byte to write
         offset = start + i;
-        if(I->content_length > 0) {
-            c = &I->content[offset];
+        if(g_hestate.content_length > 0) {
         }
 
         // Found match
-        if(offset >= I->last_found.start && offset <= I->last_found.end){
+        if(offset >= g_hestate.last_found.start && offset <= g_hestate.last_found.end){
             term_set_format_buff(buff, BG_BLUE);
         }
 
         // Selection
-        if(offset >= I->selection.start && offset <= I->selection.end){
+        if(offset >= g_hestate.selection.start && offset <= g_hestate.selection.end){
             term_set_format_buff(buff, BG_LIGHT_GRAY);
         }
 
         // Cursor
-        if(I->cursor_y == row){
-            if(I->cursor_x == i){
-                if(I->in_ascii){
+        if((unsigned int)g_hestate.cursor_y == row){
+            if((unsigned int)g_hestate.cursor_x == i){
+                if(g_hestate.in_ascii){
                     term_set_format_buff(buff, BG_YELLOW);
                     term_set_format_buff(buff, FG_BLACK);
                 }else{
@@ -256,7 +254,8 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
             }
         }
 
-        if(I->content_length > 0) {
+        if(g_hestate.content_length > 0) {
+            HEDByte *c = &g_hestate.content[offset];
             if(c->c.value != c->o.value
                     || !c->is_original){
                 term_set_format_buff(buff, FG_RED);
@@ -276,12 +275,12 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
     }
 
     // Fill the ascii
-    while(len < I->bytes_per_line){
+    while(len < g_hestate.bytes_per_line){
         buff_append(buff, " ", 1);
         len++;
     }
 
-    if(I->in_ascii == true){
+    if(g_hestate.in_ascii == true){
         term_set_format_buff(buff, FG_YELLOW);
         buff_append(buff, "|", 1);
         term_set_format_buff(buff, FORMAT_RESET);
@@ -291,55 +290,56 @@ void editor_render_ascii(int row, unsigned int start, unsigned int len){
 }
 
 
-unsigned int editor_offset_at_cursor(){
+unsigned int editor_offset_at_cursor(void){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
-    unsigned int offset = (I->cursor_y - 1 + I->scrolled) *
-                          (I->bytes_per_line) + (I->cursor_x);
+    unsigned int offset = (g_hestate.cursor_y - 1 + g_hestate.scrolled) *
+                          (g_hestate.bytes_per_line) + (g_hestate.cursor_x);
     if (offset <= 0) {
         return 0;
     }
-    if (offset >= I->content_length) {
-        return I->content_length - 1;
+    if (offset >= g_hestate.content_length) {
+        return g_hestate.content_length - 1;
     }
     return offset;
 }
 
 void editor_cursor_offset(unsigned int offset){
     // cursor_y goes from 1 to ..., cursor_x goes from 0 to bytes_per_line
-    I->cursor_x = offset % I->bytes_per_line;
-    I->cursor_y = offset / I->bytes_per_line - I->scrolled + 1;
+    g_hestate.cursor_x = offset % g_hestate.bytes_per_line;
+    g_hestate.cursor_y = offset / g_hestate.bytes_per_line - g_hestate.scrolled + 1;
 }
 
-void editor_check_scroll_top_limit(){
-
-    // Max scroll
-    unsigned int top_limit = I->content_length/I->bytes_per_line
-                             - (I->screen_rows-3);
-    if(I->scrolled >= top_limit){
-        I->scrolled = top_limit;
+void editor_check_scroll_top_limit(void){
+    // editor_calculate_bytes_per_line shouldv'e already been called, but assert just in case
+    assert(g_hestate.bytes_per_line);
+    // max scroll 
+    unsigned int top_limit = g_hestate.content_length/g_hestate.bytes_per_line
+                             - (g_hestate.screen_rows-3);
+    if(g_hestate.scrolled >= top_limit){
+        g_hestate.scrolled = top_limit;
     }
 }
 
-void editor_cursor_offset_scroll(int offset){
-    if(offset > I->content_length){
+void editor_cursor_offset_scroll(unsigned int offset){
+    if(offset > g_hestate.content_length){
         // Out of bounds
         return;
     }
 
     // Check if offset is in view range
-    unsigned int offset_min = I->scrolled * I->bytes_per_line;
-	unsigned int offset_max = offset_min + ((I->screen_rows-1)
-                              * I->bytes_per_line);
+    unsigned int offset_min = g_hestate.scrolled * g_hestate.bytes_per_line;
+	unsigned int offset_max = offset_min + ((g_hestate.screen_rows-1)
+                              * g_hestate.bytes_per_line);
 
     if (offset >= offset_min && offset <= offset_max) {
         editor_cursor_offset(offset);
         return;
     }
 
-    I->scrolled = (int) (offset / I->bytes_per_line - ((I->screen_rows-2)/2));
+    g_hestate.scrolled = (int) (offset / g_hestate.bytes_per_line - ((g_hestate.screen_rows-2)/2));
 
-    if (I->scrolled <= 0) {
-        I->scrolled = 0;
+    if (g_hestate.scrolled <= 0) {
+        g_hestate.scrolled = 0;
     }
 
     editor_check_scroll_top_limit();
@@ -350,7 +350,7 @@ void editor_cursor_offset_scroll(int offset){
 
 void editor_scroll(int units) {
 
-    I->scrolled += units;
+    g_hestate.scrolled += units;
 
     editor_check_scroll_top_limit();
 
@@ -359,82 +359,83 @@ void editor_scroll(int units) {
 void editor_move_cursor(int dir, int amount){
 
     // Don't move if file empty
-    if(I->content_length == 0){
+    if(g_hestate.content_length == 0){
         return;
     }
 
     for(int i = 0; i < amount; i++){
         switch (dir){
-            case KEY_UP: I->cursor_y--; break;
-            case KEY_DOWN: I->cursor_y++; break;
-            case KEY_LEFT: I->cursor_x--; break;
-            case KEY_RIGHT: I->cursor_x++; break;
+            case KEY_UP: g_hestate.cursor_y--; break;
+            case KEY_DOWN: g_hestate.cursor_y++; break;
+            case KEY_LEFT: g_hestate.cursor_x--; break;
+            case KEY_RIGHT: g_hestate.cursor_x++; break;
         }
 
         // Beggining of file, stop
-        if(I->cursor_x <= 0 && I->cursor_y <= 1 && I->scrolled <= 0){
-            I->cursor_x = 0;
-            I->cursor_y = 1;
+        if(g_hestate.cursor_x <= 0 && g_hestate.cursor_y <= 1 && g_hestate.scrolled <= 0){
+            g_hestate.cursor_x = 0;
+            g_hestate.cursor_y = 1;
             return;
         }
 
         // Stop left limit
-        if(I->cursor_x < 0){
+        if(g_hestate.cursor_x < 0){
             // If not the first line, move up
-            if(I->cursor_y > 1){
-                I->cursor_y--;
-                I->cursor_x = I->bytes_per_line-1;
+            if(g_hestate.cursor_y > 1){
+                g_hestate.cursor_y--;
+                g_hestate.cursor_x = g_hestate.bytes_per_line-1;
             }else{
-                I->cursor_x = 0;
+                g_hestate.cursor_x = 0;
             }
         }
 
         // Stop right limit
-        if(I->cursor_x >= I->bytes_per_line){
-            I->cursor_y++;
-            I->cursor_x = 0;
+        if(g_hestate.cursor_x >= (int)g_hestate.bytes_per_line){
+            g_hestate.cursor_y++;
+            g_hestate.cursor_x = 0;
         }
 
         // Stop top file limit
-        if(I->cursor_y <= 1 && I->scrolled <= 0){
-            I->cursor_y = 1;
+        if(g_hestate.cursor_y <= 1 && g_hestate.scrolled <= 0){
+            g_hestate.cursor_y = 1;
         }
 
-        if(I->cursor_y > I->screen_rows - 2){
-            I->cursor_y = I->screen_rows - 2;
+        if((unsigned int)g_hestate.cursor_y > g_hestate.screen_rows - 2){
+            g_hestate.cursor_y = g_hestate.screen_rows - 2;
             editor_scroll(1);
-        }else if (I->cursor_y < 1 && I->scrolled > 0){
-            I->cursor_y = 1;
+        }else if (g_hestate.cursor_y < 1 && g_hestate.scrolled > 0){
+            g_hestate.cursor_y = 1;
             editor_scroll(-1);
         }
 
         unsigned int offset = editor_offset_at_cursor();
 
-        if (offset >= I->content_length - 1) {
+        if (offset >= g_hestate.content_length - 1) {
             editor_cursor_offset(offset);
         }
     }
 
 }
 
-void editor_update_visual_selection(){
+void editor_update_visual_selection(void){
 
     unsigned int offset = editor_offset_at_cursor();
+    assert(offset <= INT_MAX);
 
     // If we moving backwards, the start of selection
-    if(offset <= I->selection.start && !I->selection.is_backwards){
-        I->selection.end          = I->selection.start;
-        I->selection.is_backwards = true;
-    }else if(offset >= I->selection.end && I->selection.is_backwards){
+    if((int)offset <= g_hestate.selection.start && !g_hestate.selection.is_backwards){
+        g_hestate.selection.end          = g_hestate.selection.start;
+        g_hestate.selection.is_backwards = true;
+    }else if((int)offset >= g_hestate.selection.end && g_hestate.selection.is_backwards){
     // If we are crossing forwards again
-        I->selection.start        = I->selection.end;
-        I->selection.is_backwards = false;
+        g_hestate.selection.start        = g_hestate.selection.end;
+        g_hestate.selection.is_backwards = false;
     }
 
-    if(I->selection.is_backwards){
-        I->selection.start = offset;
+    if(g_hestate.selection.is_backwards){
+        g_hestate.selection.start = offset;
     }else{
-        I->selection.end = offset;
+        g_hestate.selection.end = offset;
     }
 }
 
@@ -446,18 +447,6 @@ void editor_move_cursor_visual(int dir, int amount){
 
 }
 
-void editor_define_grammar_offset(int start, int end){
-    int index = grammar_add(I->grammars, "", start, end, COLOR_GREEN_BG);
-    for(int i = start; i <= end; i++){
-        I->content[i].g = index;
-    }
-}
-
-void editor_define_grammar_cursor(){
-    unsigned int offset = editor_offset_at_cursor();
-    editor_define_grammar_offset(offset, offset);
-}
-
 void editor_render_content(HEDBuff* buff){
 
     unsigned int line_chars = 0;
@@ -466,25 +455,25 @@ void editor_render_content(HEDBuff* buff){
 
     unsigned int line_offset_start = 0;
 
-    int row = 0;
+    unsigned int row = 0;
 
-    int offset;
+    off_t offset;
 
-    chars_until_ascii = 10 + I->bytes_per_line * 2 + I->bytes_per_line/2;
+    chars_until_ascii = 10 + g_hestate.bytes_per_line * 2 + g_hestate.bytes_per_line/2;
 
-    int offset_start = I->scrolled * I->bytes_per_line;
+    unsigned int offset_start = g_hestate.scrolled * g_hestate.bytes_per_line;
 
-    if(offset_start >= I->content_length){
-        offset_start = I->content_length;
+    if(offset_start >= g_hestate.content_length){
+        offset_start = g_hestate.content_length;
     }
 
     // ruler + status
-    int bytes_per_screen = I->bytes_per_line * (I->screen_rows - 2);
-    int offset_end = bytes_per_screen + offset_start;
+    unsigned int bytes_per_screen = g_hestate.bytes_per_line * (g_hestate.screen_rows - 2);
+    unsigned int offset_end = bytes_per_screen + offset_start;
 
     // Don't show more than content_length
-    if(offset_end > I->content_length ){
-        offset_end = I->content_length;
+    if(offset_end > g_hestate.content_length ){
+        offset_end = g_hestate.content_length;
     }
 
     // Empty file
@@ -494,7 +483,7 @@ void editor_render_content(HEDBuff* buff){
 
     for (offset = offset_start; offset < offset_end; offset++){
         // New row
-        if(offset % I->bytes_per_line == 0 ){
+        if(offset % g_hestate.bytes_per_line == 0 ){
             line_chars = 0;
             line_bytes = 0;
             line_offset_start = offset;
@@ -503,7 +492,7 @@ void editor_render_content(HEDBuff* buff){
             line_chars += 10;
             row++;
             // Cursor side
-            if(I->in_ascii == false){
+            if(g_hestate.in_ascii == false){
                 // Color yellow
                 term_set_format_buff(buff, FG_YELLOW);
                 buff_append(buff, "|", 1);
@@ -517,19 +506,19 @@ void editor_render_content(HEDBuff* buff){
         term_set_format_buff(buff, FORMAT_RESET);
 
         // Found match
-        if(offset >= I->last_found.start && offset <= I->last_found.end){
+        if(offset >= g_hestate.last_found.start && offset <= g_hestate.last_found.end){
             term_set_format_buff(buff, BG_BLUE);
         }
 
         // Selection
-        if(offset >= I->selection.start && offset <= I->selection.end){
+        if(offset >= g_hestate.selection.start && offset <= g_hestate.selection.end){
             term_set_format_buff(buff, BG_LIGHT_GRAY);
         }
 
         // Cursor
-        if(I->cursor_y == row){
-            if(I->cursor_x == line_bytes){
-                if(I->in_ascii){
+        if((unsigned int)g_hestate.cursor_y == row){
+            if((unsigned int)g_hestate.cursor_x == line_bytes){
+                if(g_hestate.in_ascii){
                     term_set_format_buff(buff, FORMAT_INVERTED);
                 }else{
                     term_set_format_buff(buff, BG_YELLOW);
@@ -538,26 +527,26 @@ void editor_render_content(HEDBuff* buff){
             }
         }
 
-        if(I->content_length == 0){
+        if(g_hestate.content_length == 0){
             buff_vappendf(buff, "%02x", 0);
         }else{
 
             // Grammar color
-            enum color_bg color = grammar_color_id(I->grammars,
-                I->content[offset].g);
+            enum color_bg color = grammar_color_id(g_hestate.grammars,
+                g_hestate.content[offset].g);
             if(color != COLOR_NOCOLOR){
                 term_set_format_buff(buff, color);
             }
 
             // Write the value on the screen (HEDBuff)
             // If the value is changed
-            if(I->content[offset].c.value != I->content[offset].o.value
-                || !I->content[offset].is_original){
+            if(g_hestate.content[offset].c.value != g_hestate.content[offset].o.value
+                || !g_hestate.content[offset].is_original){
                 term_set_format_buff(buff, FG_RED);
             }
 
             buff_vappendf(buff, "%02x",
-                (unsigned int) I->content[offset].c.value);
+                (unsigned int) g_hestate.content[offset].c.value);
 
         }
 
@@ -568,18 +557,18 @@ void editor_render_content(HEDBuff* buff){
 
         // Every group, write a separator of len PADDING, unless its the
         // last in line or the last row
-        if((line_bytes % g_config->bytes_group == 0) &&
-            (line_bytes != I->bytes_per_line)){
+        if((line_bytes % g_config.bytes_group == 0) &&
+            (line_bytes != g_hestate.bytes_per_line)){
             for(int s=0; s < PADDING; s++){
                 buff_append(buff, " ", 1);
                 line_chars += 1;
             }
         }
         // If end of line, write ascii and new line
-        if((offset + 1) % I->bytes_per_line == 0){
+        if((offset + 1) % g_hestate.bytes_per_line == 0){
             // Cursor side
             term_set_format_buff(buff, FG_YELLOW);
-            if(I->in_ascii == false){
+            if(g_hestate.in_ascii == false){
                 buff_append(buff, "| ", 2);
             }else{
                 buff_append(buff, " |", 2);
@@ -587,22 +576,22 @@ void editor_render_content(HEDBuff* buff){
             line_chars += 2;
             // End Cursor side
             term_set_format_buff(buff, FORMAT_RESET);
-            editor_render_ascii(row, line_offset_start, I->bytes_per_line);
-            line_chars += I->bytes_per_line; // ascii chars
+            editor_render_ascii(row, line_offset_start, g_hestate.bytes_per_line);
+            line_chars += g_hestate.bytes_per_line; // ascii chars
             term_clear_line_end_buff(buff);
             buff_append(buff, "\r\n", 2);
         }
     }
 
     // If we need padding for ascii
-    if(offset % I->bytes_per_line != 0){
+    if(offset % g_hestate.bytes_per_line != 0){
         // Fill until the ascii chars in case of short line
         while( line_chars < chars_until_ascii){
                 buff_append(buff, " ", 1);
                 line_chars++;
         }
         term_set_format_buff(buff, FG_YELLOW);
-        if(I->in_ascii == false){
+        if(g_hestate.in_ascii == false){
             buff_append(buff, "| ", 2);
         }else{
             buff_append(buff, " |", 2);
@@ -614,7 +603,7 @@ void editor_render_content(HEDBuff* buff){
     }
 
 
-    while(++row <= I->screen_rows - 2){
+    while(++row <= g_hestate.screen_rows - 2){
         // clear everything up until the status bar and ruler
         term_goto_buff(buff, row, 0);
         term_clear_line_end_buff(buff);
@@ -625,69 +614,69 @@ void editor_render_content(HEDBuff* buff){
 
 void editor_render_command(char *command){
     char buffer[32];
-    term_goto(I->screen_rows-EDITOR_COMMAND_STATUS_OFFSET_Y,
-        I->screen_cols-EDITOR_COMMAND_STATUS_OFFSET_X);
+    term_goto(g_hestate.screen_rows-EDITOR_COMMAND_STATUS_OFFSET_Y,
+        g_hestate.screen_cols-EDITOR_COMMAND_STATUS_OFFSET_X);
     int w = sprintf(buffer, "%s", command);
     term_print(buffer, w);
 }
 
 // Modes
 
-void editor_start_mode_normal(){
+void editor_start_mode_normal(void){
     // Reset selection
-    I->selection.start = -1;
-    I->selection.end = -1;
+    g_hestate.selection.start = -1;
+    g_hestate.selection.end = -1;
 }
 
-void editor_start_mode_replace(){
-    if (I->read_only && !I->warned_read_only) {
+void editor_start_mode_replace(void){
+    if (g_hestate.read_only && !g_hestate.warned_read_only) {
         editor_set_status(STATUS_WARNING, "Changing a readonly file");
-        I->warned_read_only = true;
+        g_hestate.warned_read_only = true;
     }
     // If we have data in the repeat buffer, start from the index 0 again
-    if(I->repeat_buff->len != 0){
-        I->repeat_buff->len = 0;
+    if(g_hestate.repeat_buff->len != 0){
+        g_hestate.repeat_buff->len = 0;
     }
 }
 
-void editor_start_mode_insert(){
-    if (I->read_only && !I->warned_read_only) {
+void editor_start_mode_insert(void){
+    if (g_hestate.read_only && !g_hestate.warned_read_only) {
         editor_set_status(STATUS_WARNING, "Changing a readonly file");
-        I->warned_read_only = true;
+        g_hestate.warned_read_only = true;
     }
     // If we have data in the repeat buffer, start from the index 0 again
-    if(I->repeat_buff->len != 0){
-        I->repeat_buff->len = 0;
+    if(g_hestate.repeat_buff->len != 0){
+        g_hestate.repeat_buff->len = 0;
     }
 }
 
-void editor_start_mode_visual(){
+void editor_start_mode_visual(void){
     unsigned int offset = editor_offset_at_cursor();
-    I->selection.start = offset;
-    I->selection.end   = offset;
+    g_hestate.selection.start = offset;
+    g_hestate.selection.end   = offset;
 }
 
-void editor_start_mode_cursor(){
+void editor_start_mode_cursor(void){
 }
 
-void editor_start_mode_command(){
+void editor_start_mode_command(void){
 }
 
-void editor_start_mode_append() {
-    if (I->read_only && !I->warned_read_only) {
+void editor_start_mode_append(void) {
+    if (g_hestate.read_only && !g_hestate.warned_read_only) {
         editor_set_status(STATUS_WARNING, "Changing a readonly file");
-        I->warned_read_only = true;
+        g_hestate.warned_read_only = true;
     }
     // If we have data in the repeat buffer, start from the index 0 again
-    if(I->repeat_buff->len != 0){
-        I->repeat_buff->len = 0;
+    if(g_hestate.repeat_buff->len != 0){
+        g_hestate.repeat_buff->len = 0;
     }
 }
 
 void editor_set_mode(enum editor_mode mode){
     editor_set_status(STATUS_INFO, "");
-    I->mode = mode;
-    switch(I->mode){
+    g_hestate.mode = mode;
+    switch(g_hestate.mode){
         case MODE_NORMAL:   editor_start_mode_normal(); break;
         case MODE_INSERT:   editor_start_mode_insert(); break;
         case MODE_APPEND:   editor_start_mode_append(); break;
@@ -699,27 +688,22 @@ void editor_set_mode(enum editor_mode mode){
     }
 }
 
-void editor_define_grammar_visual(){
-    editor_define_grammar_offset(I->selection.start, I->selection.end);
-    editor_set_mode(MODE_NORMAL);
-}
-
 void editor_render_ruler_left(HEDBuff* buff){
     // Left ruler
     // Start writting the text now
-    term_goto_buff(buff, I->screen_rows - EDITOR_RULER_OFFSET_Y, 0);
+    term_goto_buff(buff, g_hestate.screen_rows - EDITOR_RULER_OFFSET_Y, 0);
 
     // Write the left ruler
-    if(strlen(I->file_name) != 0){
-        buff_vappendf(buff, "%s ", I->file_name);
+    if(strlen(g_hestate.file_name) != 0){
+        buff_vappendf(buff, "%s ", g_hestate.file_name);
     }else{
         buff_vappendf(buff, "[No Name]");
     }
 
-    if(I->dirty){
+    if(g_hestate.dirty){
         buff_append(buff, "[+]", 3);
     }
-    if(I->read_only){
+    if(g_hestate.read_only){
         buff_append(buff, "[RO]", 4);
     }
 }
@@ -730,11 +714,11 @@ void editor_render_ruler_right(HEDBuff* buff){
     unsigned int percentage = 100;
 
     // Right ruler position
-    term_goto_buff(buff, I->screen_rows-1,
-                          I->screen_cols - EDITOR_RULER_RIGHT_OFFSET_X);
+    term_goto_buff(buff, g_hestate.screen_rows-1,
+                          g_hestate.screen_cols - EDITOR_RULER_RIGHT_OFFSET_X);
 
-    if(I->content_length > 1){
-        percentage = offset*100/(I->content_length-1);
+    if(g_hestate.content_length > 1){
+        percentage = offset*100/(g_hestate.content_length-1);
     }
 
     // Write the right ruler
@@ -744,7 +728,7 @@ void editor_render_ruler_right(HEDBuff* buff){
 void editor_render_ruler(HEDBuff* buff) {
 
     // Move to position and clear line
-    term_goto_buff(buff, I->screen_rows - EDITOR_RULER_OFFSET_Y, 0);
+    term_goto_buff(buff, g_hestate.screen_rows - EDITOR_RULER_OFFSET_Y, 0);
     term_clear_line_buff(buff);
 
     // Write the line background and foreground colors
@@ -752,7 +736,7 @@ void editor_render_ruler(HEDBuff* buff) {
     term_set_format_buff(buff, FG_BLACK);
 
     // Create an empty line colored with the background
-    for(int i = 0; i < I->screen_cols; i++){
+    for(unsigned int i = 0; i < g_hestate.screen_cols; i++){
         buff_append(buff, " ", 1);
     }
 
@@ -767,7 +751,7 @@ void editor_render_status_mode(HEDBuff* buff) {
 
     term_set_format_buff(buff, FG_GREEN);
 
-    switch(I->mode){
+    switch(g_hestate.mode){
         case MODE_NORMAL:   buff_vappendf(buff,""); break;
         case MODE_INSERT:   buff_vappendf(buff,"-- INSERT --  "); break;
         case MODE_APPEND:   buff_vappendf(buff,"-- APPEND --  "); break;
@@ -785,23 +769,23 @@ void editor_render_status_mode(HEDBuff* buff) {
 void editor_render_status(HEDBuff* buff){
 
     // Move to (0,screen_rows);
-    term_goto_buff(buff, I->screen_rows, 0);
+    term_goto_buff(buff, g_hestate.screen_rows, 0);
 
     editor_render_status_mode(buff);
 
-    int len = I->status_message->len;
-    if (I->screen_cols <= len) {
-        len = I->screen_cols;
-        buff_append(buff, I->status_message->content, len-3);
+    unsigned int len = g_hestate.status_message->len;
+    if (g_hestate.screen_cols <= len) {
+        len = g_hestate.screen_cols;
+        buff_append(buff, g_hestate.status_message->content, len-3);
         buff_append(buff, "...", 3);
     }
-    buff_append(buff, I->status_message->content, len);
+    buff_append(buff, g_hestate.status_message->content, len);
     term_clear_line_end_buff(buff);
 }
 
-void editor_refresh_screen(){
+void editor_refresh_screen(void){
 
-    HEDBuff* buff = I->buff;
+    HEDBuff* buff = g_hestate.buff;
 
     // Clear the content of the buffer
     // To speed the screen refresh, we use buff_clear_dirty, instead
@@ -817,18 +801,18 @@ void editor_refresh_screen(){
     editor_render_ruler(buff);
 
     // Show msg info
-    if (!I->content_length && !I->init_msg) {
-        term_goto_buff(buff, I->screen_rows/2 - 4, I->screen_cols/2 - 5);
+    if (!g_hestate.content_length && !g_hestate.init_msg) {
+        term_goto_buff(buff, g_hestate.screen_rows/2 - 4, g_hestate.screen_cols/2 - 5);
         buff_vappendf(buff, "HED - hex editor");
-        term_goto_buff(buff, I->screen_rows/2 - 2, I->screen_cols/2 - 3);
+        term_goto_buff(buff, g_hestate.screen_rows/2 - 2, g_hestate.screen_cols/2 - 3);
         buff_vappendf(buff, "version %s", HED_VERSION_SHORT);
-        term_goto_buff(buff, I->screen_rows/2, I->screen_cols/2 - 5);
+        term_goto_buff(buff, g_hestate.screen_rows/2, g_hestate.screen_cols/2 - 5);
         buff_vappendf(buff, "by Ferran Celades");
         fflush(stdout);
     }
 
     // Move to the last line of the screen
-    term_goto_buff(buff, I->screen_rows, 1);
+    term_goto_buff(buff, g_hestate.screen_rows, 1);
 
     // Write the buffer on the screen
     term_print(buff->content, buff->len);
@@ -836,99 +820,92 @@ void editor_refresh_screen(){
 
 void editor_write_byte_offset(unsigned char new_byte, unsigned int offset){
 
-    I->content[offset].c.value = new_byte;
-}
-
-void editor_write_cursor(unsigned char new_byte){
-
-    unsigned int offset = editor_offset_at_cursor();
-    editor_write_byte_offset(new_byte, offset);
-    editor_move_cursor(KEY_RIGHT, 1);
+    g_hestate.content[offset].c.value = new_byte;
 }
 
 void editor_prepare_write_repeat(char ch){
 
-    if((I->repeat_buff->len+1 >= I->repeat_buff->capacity)){
-        I->repeat_buff->content = realloc(I->repeat_buff->content, I->repeat_buff->capacity*2);
-        I->repeat_buff->capacity *= 2;
+    if((g_hestate.repeat_buff->len+1 >= g_hestate.repeat_buff->capacity)){
+        g_hestate.repeat_buff->content = realloc(g_hestate.repeat_buff->content, g_hestate.repeat_buff->capacity*2);
+        g_hestate.repeat_buff->capacity *= 2;
     }
-    I->repeat_buff->content[I->repeat_buff->len] = ch;
-    I->repeat_buff->len++;
+    g_hestate.repeat_buff->content[g_hestate.repeat_buff->len] = ch;
+    g_hestate.repeat_buff->len++;
 }
 
 void editor_replace_offset(unsigned int offset, unsigned char c){
 
     HEDByte old_byte;
 
-    if (!I->content_length) {
+    if (!g_hestate.content_length) {
         editor_set_status(STATUS_WARNING, "File is empty, nothing to replace");
         return;
     }
 
-    if(offset >= I->content_length){
+    if(offset >= g_hestate.content_length){
         return;
     }
 
-    I->dirty = true;
+    g_hestate.dirty = true;
 
-    if(I->in_ascii){
+    if(g_hestate.in_ascii){
         // Create the action
         // Original, Current, grammar
-        HEDByte action_byte = {{I->content[offset].c.value},
+        HEDByte action_byte = {{g_hestate.content[offset].c.value},
                                {c},
-                               I->content[offset].is_original,
-                               I->content[offset].g};
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte,
-            I->repeat);
+                               g_hestate.content[offset].is_original,
+                               g_hestate.content[offset].g};
+        action_add(g_hestate.action_list, ACTION_REPLACE, offset, action_byte,
+            g_hestate.repeat);
         editor_write_byte_offset(c, offset);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
 
     // Second octet
-    if(I->last_write_offset == offset){
-        old_byte = I->content[offset];
+    if(g_hestate.last_write_offset == offset){
+        old_byte = g_hestate.content[offset];
         // One octet already written in this position
 
-        if (g_config->replace_nibble == 0) {
-            I->content[offset].c.nibble.top =
-                    I->content[offset].c.nibble.bottom;
-            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        if (g_config.replace_nibble == 0) {
+            g_hestate.content[offset].c.nibble.top =
+                    g_hestate.content[offset].c.nibble.bottom;
+            g_hestate.content[offset].c.nibble.bottom = utils_hex2int(c);
         } else {
-            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+            g_hestate.content[offset].c.nibble.bottom = utils_hex2int(c);
         }
 
-        if (old_byte.c.value != I->content[offset].c.value) {
-            I->content[offset].is_original = false;
+        if (old_byte.c.value != g_hestate.content[offset].c.value) {
+            g_hestate.content[offset].is_original = false;
         }
         // Modify the last action to reflect the 2nd nibble
-        I->action_list->last->b.c.value = I->content[offset].c.value;
+        g_hestate.action_list->last->b.c.value = g_hestate.content[offset].c.value;
 
         editor_move_cursor(KEY_RIGHT, 1);
 
-        I->last_write_offset = -1;
+        g_hestate.last_write_offset = -1;
     }else{
 
-        old_byte = I->content[offset];
+        old_byte = g_hestate.content[offset];
 
-        if (g_config->replace_nibble == 0) {
-            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        if (g_config.replace_nibble == 0) {
+            g_hestate.content[offset].c.nibble.bottom = utils_hex2int(c);
         } else {
-            I->content[offset].c.nibble.top = utils_hex2int(c);
+            g_hestate.content[offset].c.nibble.top = utils_hex2int(c);
         }
 
-        if (old_byte.c.value != I->content[offset].c.value) {
-            I->content[offset].is_original = false;
+        if (old_byte.c.value != g_hestate.content[offset].c.value) {
+            g_hestate.content[offset].is_original = false;
         }
 
-        I->last_write_offset = offset;
+        g_hestate.last_write_offset = offset;
 
         // Create the action
         HEDByte action_byte = {{old_byte.c.value},
-                                {I->content[offset].c.value},
+                                {g_hestate.content[offset].c.value},
                                 old_byte.is_original,
-                                I->content[offset].g};
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+                                g_hestate.content[offset].g};
+        action_add(g_hestate.action_list, ACTION_REPLACE, offset, action_byte, g_hestate.repeat);
     }
 
 }
@@ -941,51 +918,51 @@ void editor_replace_cursor(char c){
 }
 
 void editor_replace_repeat_last(int times){
-    I->repeat = I->repeat_buff->len * times;
-    if (!I->in_ascii) {
-        I->repeat /= 2;
+    g_hestate.repeat = g_hestate.repeat_buff->len * times;
+    if (!g_hestate.in_ascii) {
+        g_hestate.repeat /= 2;
     }
-    for(int c=0; c < I->repeat_buff->len; c++){
-        editor_replace_cursor(I->repeat_buff->content[c]);
+    for(unsigned int c=0; c < g_hestate.repeat_buff->len; c++){
+        editor_replace_cursor(g_hestate.repeat_buff->content[c]);
     }
 
 }
 
 
-void editor_replace_cursor_repeat(){
+void editor_replace_cursor_repeat(void){
 
-    for(int r=0; r < I->repeat - 1; r++){
-        for(int c=0; c < I->repeat_buff->len; c++){
-            editor_replace_cursor(I->repeat_buff->content[c]);
+    for(unsigned int r=0; r < g_hestate.repeat - 1; r++){
+        for(unsigned int c=0; c < g_hestate.repeat_buff->len; c++){
+            editor_replace_cursor(g_hestate.repeat_buff->content[c]);
         }
     }
 }
 
-void editor_replace_visual(){
+void editor_replace_visual(void){
 
     int c = read_key();
 
     // action repeat
-    I->repeat = I->selection.end - I->selection.start + 1;
+    g_hestate.repeat = g_hestate.selection.end - g_hestate.selection.start + 1;
 
     // No need to scroll
-    editor_cursor_offset(I->selection.start);
+    editor_cursor_offset(g_hestate.selection.start);
 
     if(isxdigit(c)){
-        if(I->in_ascii){
-            for(int i= I->selection.start; i <= I->selection.end; i++){
+        if(g_hestate.in_ascii){
+            for(int i= g_hestate.selection.start; i <= g_hestate.selection.end; i++){
                 editor_replace_offset(i, c);
             }
         }else{
             int c2 = read_key();
             if(isxdigit(c2)){
-                for(int i= I->selection.start; i <= I->selection.end; i++){
+                for(int i= g_hestate.selection.start; i <= g_hestate.selection.end; i++){
                     editor_replace_offset(i, c); // First octet
                     editor_replace_offset(i, c2); // Second octet
                 }
 
             }else{
-                for(int i= I->selection.start; i <= I->selection.end; i++){
+                for(int i= g_hestate.selection.start; i <= g_hestate.selection.end; i++){
                     editor_replace_offset(i, c); // First octet
                     editor_replace_offset(i, c); // Second octet
                 }
@@ -1002,93 +979,93 @@ void editor_insert_offset(unsigned int offset, unsigned char c, bool append){
 
     char new_byte = 0;
 
-    if(offset >= I->content_length && I->content_length != 0){
+    if(offset >= g_hestate.content_length && g_hestate.content_length != 0){
         return;
     }
 
-    I->dirty = true;
-    I->init_msg = true;
+    g_hestate.dirty = true;
+    g_hestate.init_msg = true;
 
-    if(I->in_ascii){
-        I->content = realloc(I->content, (I->content_length + 1)*sizeof(HEDByte));
-        memmove(&I->content[offset+1], &I->content[offset],
-            (I->content_length - offset)*sizeof(HEDByte));
-        I->content_length++;
+    if(g_hestate.in_ascii){
+        g_hestate.content = realloc(g_hestate.content, (g_hestate.content_length + 1)*sizeof(HEDByte));
+        memmove(&g_hestate.content[offset+1], &g_hestate.content[offset],
+            (g_hestate.content_length - offset)*sizeof(HEDByte));
+        g_hestate.content_length++;
 
         // Make sure to set the original to 0 on insert
-        I->content[offset].o.value = 0;
-        I->content[offset].is_original = false;
+        g_hestate.content[offset].o.value = 0;
+        g_hestate.content[offset].is_original = false;
         // Less significative first
-        I->content[offset].c.value = c;
+        g_hestate.content[offset].c.value = c;
 
         HEDByte action_byte = {{0},{c},false,0};
 
         // Create the action
-        action_add(I->action_list, ACTION_INSERT, offset, action_byte, I->repeat);
+        action_add(g_hestate.action_list, ACTION_INSERT, offset, action_byte, g_hestate.repeat);
         editor_move_cursor(KEY_RIGHT, 1);
         return;
     }
 
     // Second octet
-    if(I->last_write_offset == offset){
+    if(g_hestate.last_write_offset == offset){
 
-        if (g_config->insert_nibble == 0) {
-            I->content[offset].c.nibble.top =
-                        I->content[offset].c.nibble.bottom;
-            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+        if (g_config.insert_nibble == 0) {
+            g_hestate.content[offset].c.nibble.top =
+                        g_hestate.content[offset].c.nibble.bottom;
+            g_hestate.content[offset].c.nibble.bottom = utils_hex2int(c);
         } else {
-            I->content[offset].c.nibble.bottom = utils_hex2int(c);
+            g_hestate.content[offset].c.nibble.bottom = utils_hex2int(c);
         }
 
         // Modify the last action to reflect the 2nd nibble
-        I->action_list->last->b.c.value = I->content[offset].c.value;
+        g_hestate.action_list->last->b.c.value = g_hestate.content[offset].c.value;
 
         if (append == false) {
             editor_move_cursor(KEY_RIGHT, 1);
         }
 
-        I->last_write_offset = -1;
+        g_hestate.last_write_offset = -1;
 
     }else{
         // If we append, add offset 1, unless the file is empty
-        if (append && I->content_length > 0) {
+        if (append && g_hestate.content_length > 0) {
             offset++;
         }
         // First octet
         // Increase allocation by one byte_t
         // TODO: only if not space already
-        I->content = realloc(I->content, (I->content_length + 1)
+        g_hestate.content = realloc(g_hestate.content, (g_hestate.content_length + 1)
                              * sizeof(HEDByte));
-        memmove(&I->content[offset+1], &I->content[offset],
-                (I->content_length - offset)*sizeof(HEDByte));
-        I->content_length++;
+        memmove(&g_hestate.content[offset+1], &g_hestate.content[offset],
+                (g_hestate.content_length - offset)*sizeof(HEDByte));
+        g_hestate.content_length++;
 
         new_byte = utils_hex2int(c);
 
         // Make sure to set the original to 0 and on insert
-        I->content[offset].o.value = 0;
-        I->content[offset].c.value = 0;
-        I->content[offset].is_original = false;
+        g_hestate.content[offset].o.value = 0;
+        g_hestate.content[offset].c.value = 0;
+        g_hestate.content[offset].is_original = false;
 
-        if (g_config->insert_nibble == 0) {
+        if (g_config.insert_nibble == 0) {
             // Less significative first
-            I->content[offset].c.nibble.bottom = new_byte;
+            g_hestate.content[offset].c.nibble.bottom = new_byte;
         } else {
-            I->content[offset].c.nibble.top = new_byte;
+            g_hestate.content[offset].c.nibble.top = new_byte;
         }
 
-        I->last_write_offset = offset;
+        g_hestate.last_write_offset = offset;
 
         HEDByte action_byte = {{0}, {new_byte}, false, 0};
 
-        if (append && I->content_length > 0) {
+        if (append && g_hestate.content_length > 0) {
             editor_move_cursor(KEY_RIGHT, 1);
         }
 
         if (append) {
-            action_add(I->action_list, ACTION_APPEND, offset, action_byte, I->repeat);
+            action_add(g_hestate.action_list, ACTION_APPEND, offset, action_byte, g_hestate.repeat);
         } else {
-            action_add(I->action_list, ACTION_INSERT, offset, action_byte, I->repeat);
+            action_add(g_hestate.action_list, ACTION_INSERT, offset, action_byte, g_hestate.repeat);
         }
 
     }
@@ -1107,143 +1084,143 @@ void editor_insert_cursor(char c) {
 }
 
 void editor_append_repeat_last(int times) {
-    I->repeat = I->repeat_buff->len * times;
-    if (!I->in_ascii) {
-        I->repeat /= 2;
+    g_hestate.repeat = g_hestate.repeat_buff->len * times;
+    if (!g_hestate.in_ascii) {
+        g_hestate.repeat /= 2;
     }
-    for(int c=0; c < I->repeat_buff->len; c++){
-        editor_append_cursor(I->repeat_buff->content[c]);
+    for(unsigned int c=0; c < g_hestate.repeat_buff->len; c++){
+        editor_append_cursor(g_hestate.repeat_buff->content[c]);
     }
 }
 
-void editor_append_cursor_repeat() {
-    for(int r=0; r < I->repeat - 1; r++){
-        for(int c=0; c < I->repeat_buff->len; c++){
-            editor_append_cursor(I->repeat_buff->content[c]);
+void editor_append_cursor_repeat(void) {
+    for(unsigned int r=0; r < g_hestate.repeat - 1; r++){
+        for(unsigned int c=0; c < g_hestate.repeat_buff->len; c++){
+            editor_append_cursor(g_hestate.repeat_buff->content[c]);
         }
     }
 }
 
 void editor_insert_repeat_last(int times) {
-    I->repeat = I->repeat_buff->len * times;
-    if (!I->in_ascii) {
-        I->repeat /= 2;
+    g_hestate.repeat = g_hestate.repeat_buff->len * times;
+    if (!g_hestate.in_ascii) {
+        g_hestate.repeat /= 2;
     }
-    for(int c=0; c < I->repeat_buff->len; c++){
-        editor_insert_cursor(I->repeat_buff->content[c]);
+    for(unsigned int c=0; c < g_hestate.repeat_buff->len; c++){
+        editor_insert_cursor(g_hestate.repeat_buff->content[c]);
     }
 
 }
 
-void editor_insert_cursor_repeat() {
-    for(int r=0; r < I->repeat - 1; r++){
-        for(int c=0; c < I->repeat_buff->len; c++){
-            editor_insert_cursor(I->repeat_buff->content[c]);
+void editor_insert_cursor_repeat(void) {
+    for(unsigned int r=0; r < g_hestate.repeat - 1; r++){
+        for(unsigned int c=0; c < g_hestate.repeat_buff->len; c++){
+            editor_insert_cursor(g_hestate.repeat_buff->content[c]);
         }
     }
 }
 
 void editor_undo_insert_offset(unsigned int offset){
-    memmove(&I->content[offset], &I->content[offset+1],
-        (I->content_length - offset-1)*sizeof(HEDByte));
-    I->content = realloc(I->content, (I->content_length - 1) * sizeof(HEDByte));
-    I->content_length--;
-    I->dirty = true;
+    memmove(&g_hestate.content[offset], &g_hestate.content[offset+1],
+        (g_hestate.content_length - offset-1)*sizeof(HEDByte));
+    g_hestate.content = realloc(g_hestate.content, (g_hestate.content_length - 1) * sizeof(HEDByte));
+    g_hestate.content_length--;
+    g_hestate.dirty = true;
 }
 
 void editor_redo_insert_offset(unsigned int offset, HEDByte b){
-    I->content = realloc(I->content, (I->content_length + 1) * sizeof(HEDByte));
-    memmove(&I->content[offset+1], &I->content[offset],
-        (I->content_length - offset)*sizeof(HEDByte));
-    I->content[offset].c = b.c;
-    I->content[offset].o = b.o;
-    I->content[offset].is_original = b.is_original;
-    I->content_length++;
-    I->dirty = true;
+    g_hestate.content = realloc(g_hestate.content, (g_hestate.content_length + 1) * sizeof(HEDByte));
+    memmove(&g_hestate.content[offset+1], &g_hestate.content[offset],
+        (g_hestate.content_length - offset)*sizeof(HEDByte));
+    g_hestate.content[offset].c = b.c;
+    g_hestate.content[offset].o = b.o;
+    g_hestate.content[offset].is_original = b.is_original;
+    g_hestate.content_length++;
+    g_hestate.dirty = true;
 }
 
 void editor_undo_delete_offset(unsigned int offset, HEDByte b){
     editor_redo_insert_offset(offset, b);
-    I->dirty = true;
+    g_hestate.dirty = true;
 }
 
 void editor_delete_offset(unsigned int offset) {
-    if(I->content_length > 0){
-        HEDByte old_byte = I->content[offset];
-        memmove(&I->content[offset], &I->content[offset+1],
-            (I->content_length - offset-1)*sizeof(HEDByte));
-        I->content = realloc(I->content, (I->content_length - 1)
+    if(g_hestate.content_length > 0){
+        HEDByte old_byte = g_hestate.content[offset];
+        memmove(&g_hestate.content[offset], &g_hestate.content[offset+1],
+            (g_hestate.content_length - offset-1)*sizeof(HEDByte));
+        g_hestate.content = realloc(g_hestate.content, (g_hestate.content_length - 1)
             * sizeof(HEDByte));
         HEDByte action_byte = {{old_byte.c.value},
                                 {old_byte.o.value},
                                 old_byte.is_original ,
                                 old_byte.g};
-        action_add(I->action_list, ACTION_DELETE, offset, action_byte, I->repeat);
-        I->content_length--;
+        action_add(g_hestate.action_list, ACTION_DELETE, offset, action_byte, g_hestate.repeat);
+        g_hestate.content_length--;
     } else {
         editor_set_status(STATUS_WARNING, "File is empty");
     }
-    I->dirty = true;
+    g_hestate.dirty = true;
 }
 
-void editor_delete_cursor(){
+void editor_delete_cursor(void){
     unsigned int offset = editor_offset_at_cursor();
     editor_delete_offset(offset);
-    if(offset > 0 && offset == I->content_length){
+    if(offset > 0 && offset == g_hestate.content_length){
         editor_move_cursor(KEY_LEFT, 1);
     }else{
         editor_cursor_offset(offset);
     }
-    I->dirty = true;
+    g_hestate.dirty = true;
 }
 
-void editor_delete_cursor_repeat(){
-    for(int r=0; r < I->repeat; r++){
+void editor_delete_cursor_repeat(void){
+    for(unsigned int r=0; r < g_hestate.repeat; r++){
         editor_delete_cursor();
     }
 }
 
-void editor_delete_visual(){
-    I->repeat = I->selection.end - I->selection.start + 1;
-    for(int i= I->selection.start; i <= I->selection.end; i++){
-        editor_delete_offset(I->selection.start);
+void editor_delete_visual(void){
+    g_hestate.repeat = g_hestate.selection.end - g_hestate.selection.start + 1;
+    for(int i= g_hestate.selection.start; i <= g_hestate.selection.end; i++){
+        editor_delete_offset(g_hestate.selection.start);
     }
-    editor_cursor_offset(I->selection.start);
+    editor_cursor_offset(g_hestate.selection.start);
     editor_set_mode(MODE_NORMAL);
-    I->dirty = true;
+    g_hestate.dirty = true;
 }
 
 
-void editor_reset_write_repeat(){
-    I->last_write_offset = -1;
+void editor_reset_write_repeat(void){
+    g_hestate.last_write_offset = -1;
 }
 
-void editor_redo_delete_offset(unsigned int offset, HEDByte b){
-    memmove(&I->content[offset], &I->content[offset+1],
-        (I->content_length - offset-1)*sizeof(HEDByte));
-    I->content = realloc(I->content, (I->content_length - 1)*sizeof(HEDByte));
-    I->content_length--;
+void editor_redo_delete_offset(unsigned int offset){
+    memmove(&g_hestate.content[offset], &g_hestate.content[offset+1],
+        (g_hestate.content_length - offset-1)*sizeof(HEDByte));
+    g_hestate.content = realloc(g_hestate.content, (g_hestate.content_length - 1)*sizeof(HEDByte));
+    g_hestate.content_length--;
     editor_cursor_offset(offset);
-    I->dirty = true;
+    g_hestate.dirty = true;
 }
 
 void editor_undo_redo_replace_offset(unsigned int offset, HEDByte b){
-    HEActionList *list = I->action_list;
+    HEActionList *list = g_hestate.action_list;
     // Swap original and current in action
-    list->current->b.o = I->content[offset].c;
-    list->current->b.c = I->content[offset].o;
-    list->current->b.is_original = I->content[offset].is_original;
+    list->current->b.o = g_hestate.content[offset].c;
+    list->current->b.c = g_hestate.content[offset].o;
+    list->current->b.is_original = g_hestate.content[offset].is_original;
 
-    I->content[offset].c = b.o;
-    I->content[offset].is_original = b.is_original;
-    I->dirty = true;
+    g_hestate.content[offset].c = b.o;
+    g_hestate.content[offset].is_original = b.is_original;
+    g_hestate.dirty = true;
 }
 
 
-void editor_repeat_last_action(){
+void editor_repeat_last_action(void){
 
-    HEActionList *list = I->action_list;
-    int times = I->repeat;
+    HEActionList *list = g_hestate.action_list;
+    int times = g_hestate.repeat;
     for(int i = 0; i < times; i++) {
         switch(list->last->type){
             case ACTION_BASE: break;
@@ -1257,9 +1234,9 @@ void editor_repeat_last_action(){
 
 }
 
-void editor_redo(){
+void editor_redo(void){
 
-    HEActionList *list = I->action_list;
+    HEActionList *list = g_hestate.action_list;
 
     // If newest change
     if(list->current->next == NULL){
@@ -1267,7 +1244,7 @@ void editor_redo(){
         return;
     }
 
-    for(int i = 0; i < I->repeat; i++){
+    for(unsigned int i = 0; i < g_hestate.repeat; i++){
 
         // Undo multiple actions
         // We start from action base. To redo the last change we have to go to
@@ -1295,7 +1272,7 @@ void editor_redo(){
                     editor_cursor_offset_scroll(offset);
                     break;
                 case ACTION_DELETE:
-                    editor_redo_delete_offset(offset, b); break;
+                    editor_redo_delete_offset(offset); break;
                 case ACTION_APPEND:
                     editor_redo_insert_offset(offset, b);
                     editor_cursor_offset_scroll(offset + 1);
@@ -1305,24 +1282,23 @@ void editor_redo(){
             //     list->current = list->current->next;
             // }
         }
-        I->dirty = true;
+        g_hestate.dirty = true;
     }
 
-    //action_list_print(list);
 
 }
 
-void editor_undo(){
+void editor_undo(void){
 
-    HEActionList *list = I->action_list;
+    HEActionList *list = g_hestate.action_list;
 
     if (list->current->type == ACTION_BASE) {
         editor_set_status(STATUS_INFO, "Already at oldest change");
-        I->dirty = false;
+        g_hestate.dirty = false;
         return;
     }
 
-    for(int i = 0; i < I->repeat; i++){
+    for(size_t i = 0; i < g_hestate.repeat; i++){
 
         // Undo multiple actions
         int repeat = list->current->repeat;
@@ -1335,7 +1311,7 @@ void editor_undo(){
             switch(list->current->type){
                 case ACTION_BASE:
                     editor_set_status(STATUS_INFO, "Already at oldest change");
-                    I->dirty = false;
+                    g_hestate.dirty = false;
                     return;
                 case ACTION_REPLACE:
                     // Store modified value in case of redo
@@ -1359,14 +1335,13 @@ void editor_undo(){
 
             list->current = list->current->prev;
         }
-        I->dirty = true;
+        g_hestate.dirty = true;
     }
 
-    //action_list_print(list);
 }
 
-void editor_toggle_cursor(){
-    I->in_ascii = (I->in_ascii == true) ? false: true;
+void editor_toggle_cursor(void){
+    g_hestate.in_ascii = (g_hestate.in_ascii == true) ? false: true;
 }
 
 
@@ -1376,7 +1351,7 @@ void editor_process_quit(bool force){
         exit(0);
     }
 
-    if(I->dirty){
+    if(g_hestate.dirty){
         editor_set_status(STATUS_ERROR, "No write since last change");
         return;
     }
@@ -1384,10 +1359,10 @@ void editor_process_quit(bool force){
     exit(0);
 }
 
-void editor_process_command(){
+void editor_process_command(void){
 
-    char* command = I->read_buff->content;
-    int len = I->read_buff->len;
+    char* command = g_hestate.read_buff->content;
+    int len = g_hestate.read_buff->len;
 
     if(len == 0){
         return;
@@ -1448,7 +1423,7 @@ void editor_process_command(){
         case 's':
             if(len > 1) {
                 if(strcmp(command, "set ")) {
-                    editor_command_set_run(I->read_buff);
+                    editor_command_set_run(g_hestate.read_buff);
                     return;
                 }
             }
@@ -1472,16 +1447,16 @@ void editor_process_command(){
         editor_set_status(STATUS_ERROR, "Not an editor command: %s", command);
     }
 
-    buff_clear(I->read_buff);
+    buff_clear(g_hestate.read_buff);
 
 }
 
 
 void editor_read_string(char *prompt){
-    read_line(I->read_buff, prompt);
+    read_line(g_hestate.read_buff, prompt);
 }
 
-void editor_read_command(){
+void editor_read_command(void){
     editor_read_string(":");
 }
 
@@ -1489,15 +1464,15 @@ void editor_process_search_repeat(SEARCH_DIRECTION direction, bool is_repeat) {
 
     HEDBuff* search_pattern;
 
-    if (I->in_ascii) {
-        search_pattern = I->search_buff;
+    if (g_hestate.in_ascii) {
+        search_pattern = g_hestate.search_buff;
     } else {
-        if (!utils_hexonly(I->search_buff)) {
+        if (!utils_hexonly(g_hestate.search_buff)) {
             editor_set_status(STATUS_WARNING, "Search pattern is not hex");
             return;
         }
         search_pattern = buff_create();
-        utils_hexstring_to_buff(I->search_buff, search_pattern);
+        utils_hexstring_to_buff(g_hestate.search_buff, search_pattern);
     }
 
     int offset = editor_offset_at_cursor();
@@ -1510,26 +1485,26 @@ void editor_process_search_repeat(SEARCH_DIRECTION direction, bool is_repeat) {
         }
     }
 
-    int found_offset = search_buffer(I->content, I->content_length,
+    int found_offset = search_buffer(g_hestate.content, g_hestate.content_length,
         search_pattern, offset, direction);
 
 
     if (found_offset != SEARCH_NOT_FOUND) {
         editor_cursor_offset_scroll(found_offset);
         editor_set_status(STATUS_INFO, "Pattern found at 0x%x", found_offset);
-        I->last_found.start = found_offset;
-        if (I->in_ascii) {
-            I->last_found.end = found_offset + I->search_buff->len - 1;
+        g_hestate.last_found.start = found_offset;
+        if (g_hestate.in_ascii) {
+            g_hestate.last_found.end = found_offset + g_hestate.search_buff->len - 1;
         } else {
-            I->last_found.end = found_offset + search_pattern->len - 1;
+            g_hestate.last_found.end = found_offset + search_pattern->len - 1;
         }
     } else {
         editor_set_status(STATUS_WARNING, "Pattern not found");
-        I->last_found.start = -1;
-        I->last_found.end = -1;
+        g_hestate.last_found.start = -1;
+        g_hestate.last_found.end = -1;
     }
 
-    if (!I->in_ascii) {
+    if (!g_hestate.in_ascii) {
         buff_remove(search_pattern);
     }
 }
@@ -1539,16 +1514,16 @@ void editor_process_search(SEARCH_DIRECTION direction) {
     term_clear_line_end();
 
     if (direction == SEARCH_FORWARD) {
-        if (I->in_ascii) {
-            read_line(I->search_buff, "(asc)/");
+        if (g_hestate.in_ascii) {
+            read_line(g_hestate.search_buff, "(asc)/");
         } else {
-            read_line(I->search_buff, "(hex)/");
+            read_line(g_hestate.search_buff, "(hex)/");
         }
     } else {
-        if (I->in_ascii) {
-            read_line(I->search_buff, "(asc)?");
+        if (g_hestate.in_ascii) {
+            read_line(g_hestate.search_buff, "(asc)?");
         } else {
-            read_line(I->search_buff, "(hex)?");
+            read_line(g_hestate.search_buff, "(hex)?");
         }
     }
 
@@ -1556,37 +1531,37 @@ void editor_process_search(SEARCH_DIRECTION direction) {
 }
 
 void editor_increment_byte_cursor(int repeat){
-    if (I->content_length > 0) {
+    if (g_hestate.content_length > 0) {
         int offset = editor_offset_at_cursor();
-        HEDByte action_byte = I->content[offset];
+        HEDByte action_byte = g_hestate.content[offset];
         action_byte.o.value = action_byte.c.value;
-        I->content[offset].c.value += repeat;
-        I->repeat = 1;
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+        g_hestate.content[offset].c.value += repeat;
+        g_hestate.repeat = 1;
+        action_add(g_hestate.action_list, ACTION_REPLACE, offset, action_byte, g_hestate.repeat);
     }
 }
 
 void editor_decrement_byte_cursor(int repeat){
-    if (I->content_length > 0) {
+    if (g_hestate.content_length > 0) {
         int offset = editor_offset_at_cursor();
-        HEDByte action_byte = I->content[offset];
+        HEDByte action_byte = g_hestate.content[offset];
         action_byte.o.value = action_byte.c.value;
-        I->content[offset].c.value -= repeat;
-        I->repeat = 1;
-        action_add(I->action_list, ACTION_REPLACE, offset, action_byte, I->repeat);
+        g_hestate.content[offset].c.value -= repeat;
+        g_hestate.repeat = 1;
+        action_add(g_hestate.action_list, ACTION_REPLACE, offset, action_byte, g_hestate.repeat);
     }
 }
 
 
 // Process the key pressed
-void editor_process_keypress(){
+void editor_process_keypress(void){
 
     char command[MAX_COMMAND];
     command[0] = '\0';
 
     int c;
 
-    if(I->mode == MODE_COMMAND){
+    if(g_hestate.mode == MODE_COMMAND){
         editor_read_command();
         editor_set_mode(MODE_NORMAL);
         editor_process_command();
@@ -1596,7 +1571,7 @@ void editor_process_keypress(){
     // Read first command char
     c = read_key();
 
-    if(I->mode == MODE_NORMAL){
+    if(g_hestate.mode == MODE_NORMAL){
         // TODO: Implement key repeat correctly
         if(c != '0'){
             unsigned int count = 0;
@@ -1609,9 +1584,9 @@ void editor_process_keypress(){
             }
 
             // Store in case we change mode
-            I->repeat = atoi(command);
-            if(I->repeat <= 0 ){
-                I->repeat = 1;
+            g_hestate.repeat = atoi(command);
+            if(g_hestate.repeat <= 0 ){
+                g_hestate.repeat = 1;
             }
         }
 
@@ -1619,26 +1594,26 @@ void editor_process_keypress(){
             case KEY_TAB: editor_toggle_cursor(); break;
 
             case KEY_LEFT:
-            case 'h': editor_move_cursor(KEY_LEFT, I->repeat); break;
+            case 'h': editor_move_cursor(KEY_LEFT, g_hestate.repeat); break;
             case KEY_DOWN:
-            case 'j': editor_move_cursor(KEY_DOWN, I->repeat); break;
+            case 'j': editor_move_cursor(KEY_DOWN, g_hestate.repeat); break;
             case KEY_UP:
-            case 'k': editor_move_cursor(KEY_UP, I->repeat); break;
+            case 'k': editor_move_cursor(KEY_UP, g_hestate.repeat); break;
             case KEY_RIGHT:
-            case 'l': editor_move_cursor(KEY_RIGHT, I->repeat); break;
+            case 'l': editor_move_cursor(KEY_RIGHT, g_hestate.repeat); break;
 			
-            case KEY_PAGEUP: editor_move_cursor(KEY_UP, I->screen_rows); break;
-            case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, I->screen_rows); break;
+            case KEY_PAGEUP: editor_move_cursor(KEY_UP, g_hestate.screen_rows); break;
+            case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, g_hestate.screen_rows); break;
 
             case 'w': editor_move_cursor(KEY_RIGHT,
-                I->repeat * g_config->bytes_group); break;
+                g_hestate.repeat * g_config.bytes_group); break;
             case 'b': editor_move_cursor(KEY_LEFT,
-                I->repeat * g_config->bytes_group); break;
+                g_hestate.repeat * g_config.bytes_group); break;
 
             //case 'd': editor_delete_cursor_repeat(); break;
 
-            case '[': editor_decrement_byte_cursor(I->repeat); break;
-            case ']': editor_increment_byte_cursor(I->repeat); break;
+            case '[': editor_decrement_byte_cursor(g_hestate.repeat); break;
+            case ']': editor_increment_byte_cursor(g_hestate.repeat); break;
 
             // Modes
             case KEY_ESC: editor_set_mode(MODE_NORMAL); break;
@@ -1650,7 +1625,7 @@ void editor_process_keypress(){
             // Append end of line
             case 'A':
                 editor_move_cursor(KEY_RIGHT,
-                I->bytes_per_line-1 - I->cursor_x);
+                g_hestate.bytes_per_line-1 - g_hestate.cursor_x);
                 editor_set_mode(MODE_APPEND); break;
             case ':': editor_set_mode(MODE_COMMAND); break;
 
@@ -1673,10 +1648,10 @@ void editor_process_keypress(){
 
             // EOF
             case 'G':
-                if(I->repeat != 1){
-                    editor_cursor_offset_scroll(I->repeat);
+                if(g_hestate.repeat != 1){
+                    editor_cursor_offset_scroll(g_hestate.repeat);
                 }else{
-                    editor_cursor_offset_scroll(I->content_length-1);
+                    editor_cursor_offset_scroll(g_hestate.content_length-1);
                 }
                 break;
             case 'g':
@@ -1687,16 +1662,16 @@ void editor_process_keypress(){
                 }
                 break;
             // Start of line
-            case '0': I->cursor_x = 0; break;
+            case '0': g_hestate.cursor_x = 0; break;
             // End of line
             case '$': editor_move_cursor(KEY_RIGHT,
-                I->bytes_per_line-1 - I->cursor_x); break;
+                g_hestate.bytes_per_line-1 - g_hestate.cursor_x); break;
         }
 
         return;
     }
 
-    if(I->mode == MODE_VISUAL){
+    if(g_hestate.mode == MODE_VISUAL){
         // TODO: Implement key repeat correctly
         if(c != '0'){
             unsigned int count = 0;
@@ -1709,9 +1684,9 @@ void editor_process_keypress(){
             }
 
             // Store in case we change mode
-            I->repeat = atoi(command);
-            if(I->repeat <= 0 ){
-                I->repeat = 1;
+            g_hestate.repeat = atoi(command);
+            if(g_hestate.repeat <= 0 ){
+                g_hestate.repeat = 1;
             }
         }
 
@@ -1722,23 +1697,23 @@ void editor_process_keypress(){
             switch(c){
 
                 case KEY_LEFT:
-                case 'h': editor_move_cursor_visual(KEY_LEFT, I->repeat); break;
+                case 'h': editor_move_cursor_visual(KEY_LEFT, g_hestate.repeat); break;
                 case KEY_DOWN:
-                case 'j': editor_move_cursor_visual(KEY_DOWN, I->repeat); break;
+                case 'j': editor_move_cursor_visual(KEY_DOWN, g_hestate.repeat); break;
                 case KEY_UP:
-                case 'k': editor_move_cursor_visual(KEY_UP, I->repeat); break;
+                case 'k': editor_move_cursor_visual(KEY_UP, g_hestate.repeat); break;
                 case KEY_RIGHT:
-                case 'l': editor_move_cursor_visual(KEY_RIGHT, I->repeat); break;
+                case 'l': editor_move_cursor_visual(KEY_RIGHT, g_hestate.repeat); break;
 			    
-                case KEY_PAGEUP: editor_move_cursor(KEY_UP, I->screen_rows); break;
-                case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, I->screen_rows); break;
+                case KEY_PAGEUP: editor_move_cursor(KEY_UP, g_hestate.screen_rows); break;
+                case KEY_PAGEDOWN: editor_move_cursor(KEY_DOWN, g_hestate.screen_rows); break;
 
                 case 'd': editor_delete_visual(); break;
 
                 case 'w': editor_move_cursor_visual(KEY_RIGHT,
-                    I->repeat * g_config->bytes_group); break;
+                    g_hestate.repeat * g_config.bytes_group); break;
                 case 'b': editor_move_cursor_visual(KEY_LEFT,
-                    I->repeat * g_config->bytes_group); break;
+                    g_hestate.repeat * g_config.bytes_group); break;
 
                 case 'r': editor_replace_visual(); break;
 
@@ -1746,11 +1721,11 @@ void editor_process_keypress(){
                 case 'x': editor_delete_visual(); break;
                 // EOF
                 case 'G':
-                    if(I->repeat != 1){
-                        editor_cursor_offset_scroll(I->repeat);
+                    if(g_hestate.repeat != 1){
+                        editor_cursor_offset_scroll(g_hestate.repeat);
                         editor_update_visual_selection();
                     }else{
-                        editor_cursor_offset_scroll(I->content_length-1);
+                        editor_cursor_offset_scroll(g_hestate.content_length-1);
                         editor_update_visual_selection();
                     }
                     break;
@@ -1763,11 +1738,11 @@ void editor_process_keypress(){
                     }
                     break;
                 // Start of line
-                case '0': I->cursor_x = 0;
+                case '0': g_hestate.cursor_x = 0;
                           editor_update_visual_selection(); break;
                 // End of line
                 case '$': editor_move_cursor(KEY_RIGHT,
-                          I->bytes_per_line-1 - I->cursor_x);
+                          g_hestate.bytes_per_line-1 - g_hestate.cursor_x);
                           editor_update_visual_selection(); break;
             }
         }
@@ -1778,7 +1753,7 @@ void editor_process_keypress(){
     // REPLACE, INSERT, CURSOR, APPEND
 
     // if not in ascii check for valid hex
-    if (!I->in_ascii) {
+    if (!g_hestate.in_ascii) {
         if(!isxdigit(c) && c != KEY_ESC) {
             if (isprint(c)) {
                 editor_set_status(STATUS_WARNING,
@@ -1788,11 +1763,11 @@ void editor_process_keypress(){
         }
     }
 
-    if(I->mode == MODE_REPLACE){
+    if(g_hestate.mode == MODE_REPLACE){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             // Already one repeat write
-            //I->repeat--;
+            //g_hestate.repeat--;
             editor_replace_cursor_repeat();
             editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
@@ -1804,11 +1779,11 @@ void editor_process_keypress(){
         return;
     }
 
-    if(I->mode == MODE_INSERT){
+    if(g_hestate.mode == MODE_INSERT){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             // Already one repeat write
-            //I->repeat--;
+            //g_hestate.repeat--;
             editor_insert_cursor_repeat();
             editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
@@ -1820,11 +1795,11 @@ void editor_process_keypress(){
         return;
     }
 
-    if(I->mode == MODE_APPEND){
+    if(g_hestate.mode == MODE_APPEND){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             // Already one repeat write
-            //I->repeat--;
+            //g_hestate.repeat--;
             editor_append_cursor_repeat();
             editor_reset_write_repeat();
             editor_set_mode(MODE_NORMAL);
@@ -1836,7 +1811,7 @@ void editor_process_keypress(){
         return;
     }
 
-    if(I->mode == MODE_CURSOR){
+    if(g_hestate.mode == MODE_CURSOR){
         // Finish repeat sequence and go to normal mode
         if(c == KEY_ESC){
             editor_set_mode(MODE_NORMAL);
@@ -1848,10 +1823,11 @@ void editor_process_keypress(){
 
 }
 
-void editor_resize(){
-
+void editor_resize(int sig){
+    // this suppresses unused parameter warnings, without doing anything
+    (void)sig;
     // Get new terminal size
-    term_get_size(&I->screen_rows, &I->screen_cols);
+    term_get_size(&g_hestate.screen_rows, &g_hestate.screen_cols);
     // New bytes per line
     editor_calculate_bytes_per_line();
     // Redraw the screen
@@ -1859,7 +1835,7 @@ void editor_resize(){
     editor_refresh_screen();
 }
 
-void editor_load_config_file() {
+void editor_load_config_file(void) {
 
     char *homedir;
     int c = 0;
@@ -1869,11 +1845,15 @@ void editor_load_config_file() {
     }
     if (homedir != NULL){
         char* config_path = malloc(strlen(homedir) + 10);
+        if (config_path == NULL) {
+            perror("Failed to allocate space for config path");
+            exit(1);
+        }
         strcpy(config_path, homedir);
         strcpy(config_path + strlen(homedir), "/.hedrc");
         if( access( config_path, F_OK ) != -1 ) {
             char *buff = config_open(config_path);
-            int ret = config_parse(g_config, buff);
+            int ret = config_parse(&g_config, buff);
             if (ret != -1) {
                 term_set_format(FG_RED);
                 printf("Error on line %d (%s)\r\n", ret+1, config_path);
@@ -1886,58 +1866,64 @@ void editor_load_config_file() {
                 term_set_format(FORMAT_RESET);
             }
         }
+        free(config_path);
     }
 }
 
-void editor_init(){
-    I = malloc(sizeof(HEState));
-    g_config = config_create_default();
+void editor_init(void){
+    config_init(&g_config);
     // Gets the terminal size
-    term_get_size(&I->screen_rows, &I->screen_cols);
+    term_get_size(&g_hestate.screen_rows, &g_hestate.screen_cols);
     // Enter in raw mode
-    term_enable_raw(&I->term_original);
+    term_enable_raw(&g_hestate.term_original);
     // Initialize the screen buffer
-    I->buff = buff_create();
+    g_hestate.buff = buff_create();
+    g_hestate.init_msg = false;
 
     // Start buffer with 1024 HEDBytes
-    I->content = malloc(1024*sizeof(HEDByte));
-    I->file_name = malloc(128);
-    I->file_name[0] = 0;
+    g_hestate.content = malloc(1024*sizeof(HEDByte));
+    g_hestate.content_length = 0;
+    g_hestate.file_name = malloc(128);
+    if (g_hestate.file_name == NULL) {
+        perror("Failed ot allocate space for file name");
+        exit(1);
+    }
+    g_hestate.file_name[0] = 0;
 
     // Set HEState variables
-    I->scrolled = 0;
+    g_hestate.scrolled = 0;
 
     // status bar & mode
-    I->mode = MODE_NORMAL;
-    I->status_message = buff_create();
+    g_hestate.mode = MODE_NORMAL;
+    g_hestate.status_message = buff_create();
 
     // Read command
-    I->read_buff = buff_create();
-    I->search_buff = buff_create();
-    I->last_found.start = -1;
-    I->last_found.end = -1;
+    g_hestate.read_buff = buff_create();
+    g_hestate.search_buff = buff_create();
+    g_hestate.last_found.start = -1;
+    g_hestate.last_found.end = -1;
 
     // Write
-    I->last_byte = (byte_t){0};
-    I->last_write_offset = -1;
-    I->repeat_buff = buff_create();
-    I->repeat = 1;
+    g_hestate.last_byte = (byte_t){0};
+    g_hestate.last_write_offset = -1;
+    g_hestate.repeat_buff = buff_create();
+    g_hestate.repeat = 1;
 
-    I->action_list = action_list_init();
-    I->in_ascii = false;
+    g_hestate.action_list = action_list_init();
+    g_hestate.in_ascii = false;
 
-    I->grammars = grammar_list_create();
+    g_hestate.grammars = grammar_list_create();
 
-    I->selection.start = -1;
-    I->selection.end   = -1;
-    I->selection.is_backwards   = false;
+    g_hestate.selection.start = -1;
+    g_hestate.selection.end   = -1;
+    g_hestate.selection.is_backwards   = false;
 
-    I->cursor_y = 1;
-    I->cursor_x = 0;
+    g_hestate.cursor_y = 1;
+    g_hestate.cursor_x = 0;
 
-    I->dirty = false;
-    I->read_only = false;
-    I->warned_read_only = false;
+    g_hestate.dirty = false;
+    g_hestate.read_only = false;
+    g_hestate.warned_read_only = false;
 
     editor_load_config_file();
 
@@ -1954,35 +1940,59 @@ void editor_init(){
 }
 
 // Clears all buffers and exits the editor
-void editor_exit(){
-    if(I != NULL){
-        if (I->buff != NULL){
-            // Free the screen buff
-            buff_remove(I->buff);
-        }
-        if (I->content != NULL){
-            // Free the read file content
-            free(I->content);
-        }
-        if (I->file_name != NULL){
-            // Free the filename
-            free(I->file_name);
-        }
-        if (I->status_message != NULL){
-            // Free the status_mesasge
-            free(I->status_message);
-        }
-        if (I->action_list != NULL){
-            // Free the status_mesasge
-            //TODO: free the double linked list
-            free(I->action_list);
-        }
-
-        term_clear_screen();
-
-        // Exit raw mode
-        term_disable_raw(&I->term_original);
-
-        free(I);
+void editor_exit(void){
+    if (g_hestate.read_buff != NULL){
+        buff_remove(g_hestate.read_buff);
+        g_hestate.read_buff = NULL;
     }
+    if (g_hestate.search_buff != NULL){
+        buff_remove(g_hestate.search_buff);
+        g_hestate.search_buff = NULL;
+    }
+    if (g_hestate.repeat_buff != NULL){
+        buff_remove(g_hestate.repeat_buff);
+        g_hestate.repeat_buff = NULL;
+    }
+    if (g_hestate.buff != NULL){
+        // Free the screen buff
+        buff_remove(g_hestate.buff);
+        g_hestate.buff = NULL;
+    }
+    if (g_hestate.status_message != NULL){
+        // Free the status_mesasge
+        buff_remove(g_hestate.status_message);
+        g_hestate.status_message = NULL;
+    }
+    if (g_hestate.content != NULL){
+        // Free the read file content
+        free(g_hestate.content);
+        g_hestate.content = NULL;
+    }
+    if (g_hestate.file_name != NULL){
+        // Free the filename
+        free(g_hestate.file_name);
+        g_hestate.file_name = NULL;
+    }
+    if (g_hestate.status_message != NULL){
+        // Free the status_mesasge
+        buff_remove(g_hestate.status_message);
+        g_hestate.status_message = NULL;
+    }
+
+    if (g_hestate.action_list != NULL){
+        // Free the action list items, then free the action list itself
+        action_cleanup(g_hestate.action_list);
+        free(g_hestate.action_list);
+        g_hestate.action_list = NULL;
+    }
+
+    if (g_hestate.grammars != NULL){
+        grammar_cleanup(g_hestate.grammars);
+        g_hestate.grammars = NULL;
+    }
+
+    term_clear_screen();
+
+    // Exit raw mode
+    term_disable_raw(&g_hestate.term_original);
 }

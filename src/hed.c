@@ -15,11 +15,11 @@
 #define HED_GIT_HASH "unknown"
 #endif
 
-static void print_version() {
+static void print_version(void) {
 	printf("hed %s\ncommit: %s\n", HED_VERSION, HED_GIT_HASH);
 }
 
-static void print_help() {
+static void print_help(void) {
 	fprintf(stderr,
 	"usage: hed [-hv] filename\n"\
 	"\n"

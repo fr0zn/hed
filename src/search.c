@@ -8,7 +8,7 @@ int search_buffer(HEDByte* buffer, int buff_len, HEDBuff* search_pattern,
 
 	if (direction == SEARCH_FORWARD) {
 	 	for (int b = start_offset; b < buff_len; b++) {
-	 		for (int p = 0; p < search_pattern->len; p++) {
+	 		for (unsigned int p = 0; p < search_pattern->len; p++) {
 	 			if ((search_pattern->content[p] & 0xff) == (buffer[b+p].c.value & 0xff)) {
 	 				// If we found the first byte match
 	 				if (p == 0) offset = b;
@@ -24,7 +24,7 @@ int search_buffer(HEDByte* buffer, int buff_len, HEDBuff* search_pattern,
 	 	}
 	} else if (direction == SEARCH_BACKWARD) {
 		for (int b = start_offset; b >= 0; b--) {
-	 		for (int p = 0; p < search_pattern->len; p++) {
+	 		for (unsigned int p = 0; p < search_pattern->len; p++) {
 	 			if ((search_pattern->content[p] & 0xff) == (buffer[b+p].c.value & 0xff)) {
 	 				// If we found the first byte match
 	 				if (p == 0) offset = b;

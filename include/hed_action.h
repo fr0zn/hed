@@ -17,7 +17,7 @@ typedef struct action_t{
     struct action_t *next;
 
     enum action_type type;
-    unsigned int offset;
+    size_t offset;
 
     HEDByte b; // Changed/modified byte (original)
 
@@ -32,9 +32,11 @@ typedef struct {
 
 }HEActionList;
 
-HEActionList* action_list_init();
+HEActionList* action_list_init(void);
 void action_add(HEActionList *list, enum action_type type,
     unsigned int offset, HEDByte byte, int repeat);
+
+void action_cleanup(HEActionList *list);
 void __debug__print_action_list(HEActionList *list);
 
 #endif

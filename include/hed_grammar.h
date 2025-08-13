@@ -42,17 +42,11 @@ enum grammar_step {
 };
 
 
-HEGrammarList* grammar_list_create();
-
-void grammar_print_list(HEGrammarList* list);
-
-int grammar_add(HEGrammarList* list, char *name, int start, int end, enum color_bg color);
+HEGrammarList* grammar_list_create(void);
 
 enum color_bg grammar_color_id(HEGrammarList* list, int id);
 
 HEGrammar* grammar_id(HEGrammarList* list, int id);
 
-bool grammar_del(HEGrammarList* list, int id);
-
-
+void grammar_cleanup(HEGrammarList *list);
 #endif
